@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-roundup
+  namespace: image-roundup
+  labels:
+    app.kubernetes.io/name: image-roundup
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: image-roundup
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: image-roundup
+    spec:
+      serviceAccountName: image-roundup
+      # No runAsUser — OpenShift assigns a UID from the namespace's allowed range.
+      # This satisfies restricted-v2 SCC without needing anyuid or privileged.
+      securityContext:
+        runAsNonRoot: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            # To use an existing claim instead of the one in pvc.yaml,
+            # change claimName here and skip applying pvc.yaml.
+            claimName: image-roundup-data
+      containers:
+        - name: image-roundup
+          image: docker.io/fumbles/image-roundup:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: IN_CLUSTER
+              value: "true"
+            - name: LISTEN_ADDR
+              value: ":8080"
+            - name: DATA_DIR
+              value: "/data"
+            # Default scan interval is 8 h (28800 s).
+            # Override here if you need a different cadence:
+            # - name: SCAN_INTERVAL_SECONDS
+            #   value: "3600"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # /data must be writable
+            capabilities:
+              drop: ["ALL"]
+            # runAsUser is intentionally absent — OpenShift injects the namespace UID.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-roundup
+  namespace: image-roundup
+  labels:
+    app.kubernetes.io/name: image-roundup
+spec:
+  selector:
+    app.kubernetes.io/name: image-roundup
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

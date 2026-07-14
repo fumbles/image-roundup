@@ -1,0 +1,27 @@
+/* Import all Carbon styles via the package's own index */
+@use '@carbon/react';
+
+:root {
+  --ir-font: 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--ir-font);
+  background: var(--cds-background);
+  color: var(--cds-text-primary);
+}
+
+/* Compact monospace digest display */
+.ir-digest {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+}
+
+/* Status dot helper */
+.ir-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}

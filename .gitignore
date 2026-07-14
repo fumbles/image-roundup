@@ -1,0 +1,31 @@
+# ── Go ────────────────────────────────────────────────────────────────────────
+# Pre-built binary produced by build.sh — never commit this
+/image-roundup
+
+# Test cache and coverage
+*.test
+*.out
+coverage.txt
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.local
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Secrets / local config ────────────────────────────────────────────────────
+*.env
+.env
+.env.*
+kubeconfig

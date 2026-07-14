@@ -1,0 +1,39 @@
+# OpenShift Route (created only when the Route API is available)
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: image-roundup
+  namespace: image-roundup
+  labels:
+    app.kubernetes.io/name: image-roundup
+spec:
+  host: image-roundup.apps.sno.yamlwrangler.com   # override with your cluster domain
+  to:
+    kind: Service
+    name: image-roundup
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+# Standard Kubernetes Ingress (optional, use instead of Route on vanilla k8s)
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: image-roundup
+#   namespace: image-roundup
+#   annotations:
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+# spec:
+#   rules:
+#     - host: image-roundup.example.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: image-roundup
+#                 port:
+#                   name: http

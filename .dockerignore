@@ -1,0 +1,5 @@
+# Send only the pre-built artefacts to the Docker build context.
+# Everything else is built on the host by build.sh before docker runs.
+*
+!image-roundup
+!frontend/dist/**

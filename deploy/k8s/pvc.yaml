@@ -1,0 +1,20 @@
+# PersistentVolumeClaim for scan result storage.
+#
+# Default: ReadWriteOnce, 1Gi.  Adjust storageClassName for your cluster.
+# If you already have a claim, skip this file and set claimName in deployment.yaml.
+#
+# Apply:  kubectl apply -f deploy/k8s/pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: image-roundup-data
+  namespace: image-roundup
+  labels:
+    app.kubernetes.io/name: image-roundup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: "lvms-vg-apps"   # uncomment to pin to a specific StorageClass
