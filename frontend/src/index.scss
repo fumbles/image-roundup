@@ -191,6 +191,7 @@ body {
   padding: 0.125rem 0.5rem 0.125rem 0.375rem;
   background: var(--ir-status-bg, transparent);
   color: var(--ir-status-fg, var(--cds-text-primary));
+  white-space: nowrap;
 }
 
 .ir-status-up_to_date {
@@ -211,6 +212,67 @@ body {
 .ir-status-check_failed {
   --ir-status-fg: var(--ir-red);
   --ir-status-bg: var(--ir-red-soft);
+}
+
+.ir-images-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.ir-images-table th:nth-child(1) {
+  width: 2.5rem;
+}
+
+.ir-images-table th:nth-child(2) {
+  width: 8.5rem;
+}
+
+.ir-images-table th:nth-child(3) {
+  width: 20%;
+}
+
+.ir-images-table th:nth-child(4) {
+  width: 8%;
+}
+
+.ir-images-table th:nth-child(5),
+.ir-images-table th:nth-child(6) {
+  width: 11%;
+}
+
+.ir-images-table th:nth-child(7) {
+  width: 8%;
+}
+
+.ir-images-table th:nth-child(8) {
+  width: 11%;
+}
+
+.ir-images-table th:nth-child(9) {
+  width: 7%;
+}
+
+.ir-images-table th:nth-child(10) {
+  width: 9%;
+}
+
+.ir-images-table__cell {
+  vertical-align: top;
+}
+
+.ir-images-table__cell--configuredImage,
+.ir-images-table__cell--workloadName,
+.ir-images-table__cell--namespace,
+.ir-images-table__cell--containerName {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ir-images-table__cell--runningDigest,
+.ir-images-table__cell--registryDigest,
+.ir-images-table__cell--lastChecked {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ir-settings {

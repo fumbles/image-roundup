@@ -13,6 +13,20 @@ Image Roundup is a lightweight, read-only web application for Kubernetes and Ope
 - What digest does that registry tag resolve to now?
 - Is an updated image available?
 
+## Screenshots
+
+### Overview
+
+![Image Roundup overview](docs/screenshots/overview.png)
+
+### Images
+
+![Image update detail](docs/screenshots/images-update-detail.png)
+
+### Registries
+
+![Registry summary](docs/screenshots/registries.png)
+
 ## Architecture
 
 | Layer | Stack |

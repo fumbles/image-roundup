@@ -332,7 +332,7 @@ export default function ImagesPage() {
                   />
                 </TableToolbarContent>
               </TableToolbar>
-              <Table {...getTableProps()} size="sm">
+              <Table {...getTableProps()} size="sm" className="ir-images-table">
                 <TableHead>
                   <TableRow>
                     <TableExpandHeader />
@@ -350,7 +350,7 @@ export default function ImagesPage() {
                       <>
                         <TableExpandRow {...getRowProps({ row })} key={row.id}>
                           {row.cells.map((cell: any) => (
-                            <TableCell key={cell.id}>
+                            <TableCell key={cell.id} className={`ir-images-table__cell ir-images-table__cell--${cell.info.header}`}>
                               {cell.info.header === 'status' && original ? (
                                 <StatusBadge status={original.status} />
                               ) : cell.info.header === 'tag' && original?.latestTag ? (
