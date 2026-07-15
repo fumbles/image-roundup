@@ -79,14 +79,15 @@ func (s *Scanner) RunScoped(ctx context.Context, opts DiscoveryOptions) error {
 func (s *Scanner) checkRecords(ctx context.Context, records []*models.ImageRecord) []string {
 	var scanErrors []string
 	lookup := s.registryLookup(ctx, records)
-	jobs := make(chan *models.ImageRecord)
+	scanJobs := groupScanJobs(records, lookup)
+	jobs := make(chan scanJob)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
 	worker := func() {
 		defer wg.Done()
-		for rec := range jobs {
-			if errText := s.checkRecord(ctx, lookup, rec); errText != "" {
+		for job := range jobs {
+			if errText := s.checkRecordGroup(ctx, lookup, job); errText != "" {
 				mu.Lock()
 				scanErrors = append(scanErrors, errText)
 				mu.Unlock()
@@ -94,17 +95,17 @@ func (s *Scanner) checkRecords(ctx context.Context, records []*models.ImageRecor
 		}
 	}
 
-	for range scanWorkerCount(len(records)) {
+	for range scanWorkerCount(len(scanJobs)) {
 		wg.Add(1)
 		go worker()
 	}
 
 enqueue:
-	for _, rec := range records {
+	for _, job := range scanJobs {
 		select {
 		case <-ctx.Done():
 			break enqueue
-		case jobs <- rec:
+		case jobs <- job:
 		}
 	}
 	close(jobs)
@@ -113,33 +114,70 @@ enqueue:
 	return scanErrors
 }
 
-func (s *Scanner) checkRecord(ctx context.Context, lookup registryLookup, rec *models.ImageRecord) string {
+type scanJob struct {
+	lookupImage  string
+	registryHost string
+	records      []*models.ImageRecord
+}
+
+func groupScanJobs(records []*models.ImageRecord, lookup registryLookup) []scanJob {
+	byKey := make(map[string]*scanJob)
+	for _, rec := range records {
+		lookupImage := lookup.imageRef(rec.ConfiguredImage, rec.Registry)
+		key := rec.Registry + "\x00" + lookupImage
+		job, ok := byKey[key]
+		if !ok {
+			job = &scanJob{
+				lookupImage:  lookupImage,
+				registryHost: rec.Registry,
+				records:      []*models.ImageRecord{},
+			}
+			byKey[key] = job
+		}
+		job.records = append(job.records, rec)
+	}
+
+	jobs := make([]scanJob, 0, len(byKey))
+	for _, job := range byKey {
+		jobs = append(jobs, *job)
+	}
+	return jobs
+}
+
+func (s *Scanner) checkRecordGroup(ctx context.Context, lookup registryLookup, job scanJob) string {
 	select {
 	case <-ctx.Done():
 		return ctx.Err().Error()
 	default:
 	}
 
-	{
-		lookupImage := lookup.imageRef(rec.ConfiguredImage, rec.Registry)
-		lookupAuth := lookup.authenticator(rec.Registry)
-		registryCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-		result := s.checker.ResolveWithAuth(registryCtx, lookupImage, lookupAuth)
-		cancel()
+	lookupAuth := lookup.authenticator(job.registryHost)
+	registryCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	result := s.checker.ResolveWithAuth(registryCtx, job.lookupImage, lookupAuth)
+	cancel()
 
-		now := time.Now().UTC()
+	now := time.Now().UTC()
+	for _, rec := range job.records {
 		rec.LastChecked = &now
+	}
 
-		if result.Error != nil {
+	if result.Error != nil {
+		errText := result.Error.Error()
+		for _, rec := range job.records {
 			rec.Status = models.StatusCheckFailed
-			rec.Error = result.Error.Error()
-			s.log.Warn("registry check failed",
-				zap.String("image", rec.ConfiguredImage),
-				zap.String("lookupImage", lookupImage),
-				zap.Error(result.Error))
-			return rec.Error
+			rec.Error = errText
 		}
+		s.log.Warn("registry check failed",
+			zap.String("image", job.records[0].ConfiguredImage),
+			zap.String("lookupImage", job.lookupImage),
+			zap.Int("records", len(job.records)),
+			zap.Error(result.Error))
+		return errText
+	}
 
+	needsLatest := false
+	for _, rec := range job.records {
+		rec.Error = ""
 		rec.RegistryDigest = result.Digest
 		rec.IndexDigest = result.IndexDigest
 		if result.Platform != "" {
@@ -154,25 +192,33 @@ func (s *Scanner) checkRecord(ctx context.Context, lookup registryLookup, rec *m
 		default:
 			rec.Status = models.StatusUpdateAvailable
 		}
-
-		// Only look up the latest semver tag when an update is already flagged.
-		// This avoids an extra API call per image on every scan.
 		if rec.Status == models.StatusUpdateAvailable && rec.Tag != "" {
-			latestCtx, latestCancel := context.WithTimeout(ctx, 20*time.Second)
-			lt := s.checker.LatestTagWithAuth(latestCtx, lookupImage, rec.Tag, rec.Platform, lookupAuth)
-			latestCancel()
-			if lt.Error != nil {
-				s.log.Debug("latest tag lookup failed",
-					zap.String("image", rec.ConfiguredImage),
-					zap.String("lookupImage", lookupImage),
-					zap.Error(lt.Error))
-			} else {
-				rec.LatestTag = lt.Tag
-				rec.LatestTagDigest = lt.Digest
-			}
+			needsLatest = true
 		}
 	}
 
+	// Only look up the latest semver tag when an update is already flagged.
+	// This avoids an extra API call per image on every scan.
+	if needsLatest {
+		first := job.records[0]
+		latestCtx, latestCancel := context.WithTimeout(ctx, 20*time.Second)
+		lt := s.checker.LatestTagWithAuth(latestCtx, job.lookupImage, first.Tag, first.Platform, lookupAuth)
+		latestCancel()
+		if lt.Error != nil {
+			s.log.Debug("latest tag lookup failed",
+				zap.String("image", first.ConfiguredImage),
+				zap.String("lookupImage", job.lookupImage),
+				zap.Int("records", len(job.records)),
+				zap.Error(lt.Error))
+		} else {
+			for _, rec := range job.records {
+				if rec.Status == models.StatusUpdateAvailable {
+					rec.LatestTag = lt.Tag
+					rec.LatestTagDigest = lt.Digest
+				}
+			}
+		}
+	}
 	return ""
 }
 

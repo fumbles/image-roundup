@@ -149,6 +149,25 @@ func TestScanWorkerCount(t *testing.T) {
 	}
 }
 
+func TestGroupScanJobsDeduplicatesLookupImages(t *testing.T) {
+	records := []*models.ImageRecord{
+		{ConfiguredImage: "docker.io/library/postgres:17", Registry: "docker.io"},
+		{ConfiguredImage: "docker.io/library/postgres:17", Registry: "docker.io"},
+		{ConfiguredImage: "docker.io/library/nginx:1.31", Registry: "docker.io"},
+	}
+
+	jobs := groupScanJobs(records, registryLookup{})
+	if len(jobs) != 2 {
+		t.Fatalf("groupScanJobs() produced %d jobs, want 2", len(jobs))
+	}
+
+	for _, job := range jobs {
+		if job.lookupImage == "docker.io/library/postgres:17" && len(job.records) != 2 {
+			t.Fatalf("postgres job has %d records, want 2", len(job.records))
+		}
+	}
+}
+
 func TestScopedRecordMatcher(t *testing.T) {
 	matches := scopedRecordMatcher(DiscoveryOptions{
 		IncludedNamespaces: []string{"media"},

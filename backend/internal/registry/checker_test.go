@@ -1,6 +1,30 @@
 package registry
 
-import "testing"
+import (
+	"encoding/base64"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestDockerHubAuthConfigReadsDockerIOAlias(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("DOCKER_CONFIG", dir)
+
+	auth := base64.StdEncoding.EncodeToString([]byte("user:pass"))
+	config := `{"auths":{"docker.io":{"auth":"` + auth + `"}}}`
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, ok := dockerHubAuthConfig()
+	if !ok {
+		t.Fatal("expected docker.io auth config to be found")
+	}
+	if cfg.Username != "user" || cfg.Password != "pass" {
+		t.Fatalf("unexpected auth config: %#v", cfg)
+	}
+}
 
 func TestSelectLatestSemverTag(t *testing.T) {
 	tests := []struct {

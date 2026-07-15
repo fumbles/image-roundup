@@ -3,8 +3,11 @@ package registry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -191,9 +194,73 @@ func (c *Checker) remoteOptions(ctx context.Context, auth authn.Authenticator) [
 	if auth != nil {
 		opts = append(opts, remote.WithAuth(auth))
 	} else {
-		opts = append(opts, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+		opts = append(opts, remote.WithAuthFromKeychain(dockerHubAliasKeychain{}))
 	}
 	return opts
+}
+
+type dockerHubAliasKeychain struct{}
+
+func (dockerHubAliasKeychain) Resolve(target authn.Resource) (authn.Authenticator, error) {
+	auth, err := authn.DefaultKeychain.Resolve(target)
+	if err != nil || auth != authn.Anonymous {
+		return auth, err
+	}
+	if target.RegistryStr() != name.DefaultRegistry {
+		return auth, nil
+	}
+
+	cfg, ok := dockerHubAuthConfig()
+	if !ok {
+		return auth, nil
+	}
+	return authn.FromConfig(cfg), nil
+}
+
+func dockerHubAuthConfig() (authn.AuthConfig, bool) {
+	path := dockerConfigPath()
+	if path == "" {
+		return authn.AuthConfig{}, false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return authn.AuthConfig{}, false
+	}
+
+	var cfg struct {
+		Auths map[string]authn.AuthConfig `json:"auths"`
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return authn.AuthConfig{}, false
+	}
+
+	for _, key := range []string{"docker.io", "index.docker.io", authn.DefaultAuthKey} {
+		authCfg, ok := cfg.Auths[key]
+		if !ok || emptyAuthConfig(authCfg) {
+			continue
+		}
+		return authCfg, true
+	}
+	return authn.AuthConfig{}, false
+}
+
+func dockerConfigPath() string {
+	if dir := os.Getenv("DOCKER_CONFIG"); dir != "" {
+		return filepath.Join(dir, "config.json")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	return filepath.Join(home, ".docker", "config.json")
+}
+
+func emptyAuthConfig(cfg authn.AuthConfig) bool {
+	return cfg.Username == "" &&
+		cfg.Password == "" &&
+		cfg.Auth == "" &&
+		cfg.IdentityToken == "" &&
+		cfg.RegistryToken == ""
 }
 
 func selectLatestSemverTag(tags []string, currentTag, platform, repository string) string {
