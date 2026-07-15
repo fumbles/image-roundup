@@ -22,6 +22,7 @@ Image Roundup is a lightweight, read-only web application for Kubernetes and Ope
   running digest, registry digest, and platform details.
 - Digest comparison against the registry tag currently configured on each
   workload.
+- Reachable Api docs page and access for use by other applications (https://\<route\>/api/v1/docs)
 - Multi-arch awareness: comparisons use platform digests while preserving index
   digests for inspection.
 - Compatible latest-tag hints for update candidates, with guardrails for
