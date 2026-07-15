@@ -1,5 +1,8 @@
 # Image Roundup
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/fumbles/image-roundup?logo=docker&label=image-roundup%20pulls)](https://hub.docker.com/r/fumbles/image-roundup)
+[![Docker Image Version](https://img.shields.io/docker/v/fumbles/image-roundup?sort=semver&logo=docker&label=version)](https://hub.docker.com/r/fumbles/image-roundup)
+
 > **See what's running and what's changed.**
 
 Image Roundup is a lightweight, read-only web application for Kubernetes and OpenShift that inventories container images running across a cluster and determines whether each workload is using the same image digest currently published by its configured registry tag.
@@ -139,8 +142,14 @@ oc apply -f deploy/k8s/route.yaml
 
 ## REST API
 
+See [api.md](api.md) for polling examples, request/response shapes, and endpoint
+details. Interactive API docs are served by the app at `/api/v1/docs`; the
+OpenAPI document is available at `/api/v1/openapi.json`.
+
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/v1/docs` | Interactive API documentation |
+| GET | `/api/v1/openapi.json` | OpenAPI 3.1 document |
 | GET | `/api/v1/summary` | Dashboard summary counts |
 | GET | `/api/v1/images` | All image records; supports `?search=&namespace=&registry=&kind=&status=` |
 | GET | `/api/v1/images/{id}` | Single image record |

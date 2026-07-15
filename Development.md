@@ -95,6 +95,8 @@ the REST API.
 
 `backend/internal/api/handler.go` provides:
 
+- `GET /api/v1/docs`
+- `GET /api/v1/openapi.json`
 - `GET /api/v1/summary`
 - `GET /api/v1/images`
 - `GET /api/v1/images/{id}`
@@ -105,6 +107,10 @@ the REST API.
 - `PUT /api/v1/settings`
 - `/healthz`, `/readyz`, `/metrics`
 - static SPA fallback
+
+`backend/internal/api/docs.go` contains the embedded OpenAPI 3.1 document and
+self-contained interactive docs page. The docs page intentionally avoids CDN
+dependencies so it works inside disconnected or restricted clusters.
 
 `POST /api/v1/scan` accepts an optional JSON body:
 

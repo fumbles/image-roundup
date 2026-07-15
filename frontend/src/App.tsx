@@ -10,7 +10,7 @@ import {
   Content,
   Theme,
 } from '@carbon/react'
-import { Moon, Sun } from '@carbon/icons-react'
+import { LogoGithub, Moon, Sun } from '@carbon/icons-react'
 import { getSettings, putSettings } from './api'
 import OverviewPage from './pages/OverviewPage'
 import ImagesPage from './pages/ImagesPage'
@@ -20,6 +20,8 @@ import { SETTINGS_SAVED_EVENT } from './theme'
 import type { Settings } from './types'
 
 type CarbonTheme = 'white' | 'g10' | 'g90' | 'g100'
+
+const GITHUB_REPO_URL = 'https://github.com/fumbles/image-roundup'
 
 function prefersDarkScheme() {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
@@ -114,6 +116,7 @@ function AppShell() {
     setSettings(updated)
     window.dispatchEvent(new CustomEvent(SETTINGS_SAVED_EVENT, { detail: updated }))
   }
+  const openGithub = () => window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer')
 
   const dark = theme === 'g100'
   const themeActionLabel = !settings
@@ -140,6 +143,13 @@ function AppShell() {
             onClick={toggleTheme}
           >
             {dark ? <Sun size={20} /> : <Moon size={20} />}
+          </HeaderGlobalAction>
+          <HeaderGlobalAction
+            aria-label="Open GitHub repository"
+            tooltipAlignment="end"
+            onClick={openGithub}
+          >
+            <LogoGithub size={20} />
           </HeaderGlobalAction>
         </HeaderGlobalBar>
       </Header>

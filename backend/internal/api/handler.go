@@ -96,6 +96,8 @@ func (h *Handler) Router() http.Handler {
 
 	// API v1
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/docs", h.getDocs)
+		r.Get("/openapi.json", h.getOpenAPI)
 		r.Get("/summary", h.getSummary)
 		r.Get("/images", h.getImages)
 		r.Get("/images/{id}", h.getImage)
