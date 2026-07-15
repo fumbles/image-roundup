@@ -36,17 +36,17 @@ Image Roundup is a lightweight, read-only web application for Kubernetes and Ope
 
 ## Screenshots
 
-### Overview
+| Overview | Images |
+|---|---|
+| <img src="docs/screenshots/overview.png" alt="Image Roundup overview" width="420"> | <img src="docs/screenshots/images-update-detail.png" alt="Image update detail" width="420"> |
 
-![Image Roundup overview](docs/screenshots/overview.png)
+| Registries | |
+|---|---|
+| <img src="docs/screenshots/registries.png" alt="Registry summary" width="420"> | |
 
-### Images
-
-![Image update detail](docs/screenshots/images-update-detail.png)
-
-### Registries
-
-![Registry summary](docs/screenshots/registries.png)
+| API docs summary | API docs response |
+|---|---|
+| <img src="docs/screenshots/api-docs-summary.png" alt="API docs summary endpoint" width="420"> | <img src="docs/screenshots/api-docs-scan.png" alt="API docs scan response" width="420"> |
 
 ## Architecture
 
