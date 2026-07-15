@@ -11,6 +11,12 @@ body {
   color: var(--cds-text-primary);
 }
 
+.ir-app-shell {
+  min-height: 100vh;
+  background: var(--cds-background);
+  color: var(--cds-text-primary);
+}
+
 /* Compact monospace digest display */
 .ir-digest {
   font-family: 'IBM Plex Mono', monospace;
@@ -24,4 +30,74 @@ body {
   height: 8px;
   border-radius: 50%;
   margin-right: 6px;
+}
+
+.ir-settings {
+  padding: 1.5rem;
+  max-width: 72rem;
+}
+
+.ir-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.ir-settings-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.ir-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.ir-settings-section {
+  border-top: 1px solid var(--cds-border-subtle);
+  padding-top: 1rem;
+}
+
+.ir-settings-section h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0 0 1rem;
+}
+
+.ir-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(16rem, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.ir-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.ir-settings-toggle-field {
+  min-height: 4rem;
+  display: flex;
+  align-items: end;
+}
+
+@media (max-width: 760px) {
+  .ir-settings-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ir-settings-grid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -4,6 +4,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"go.uber.org/zap"
@@ -80,6 +81,12 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 		}
 
 		owner := resolvedOwner(pod, rsOwners)
+		if isWorkloadExcluded(pod.Namespace, owner, opts) {
+			continue
+		}
+		if !workloadMatches(owner, opts) {
+			continue
+		}
 		for _, cs := range pod.Status.ContainerStatuses {
 			specImage := containerSpecImage(pod, cs.Name)
 			if specImage == "" {
@@ -87,6 +94,9 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 			}
 
 			ref := ociref.Parse(specImage)
+			if opts.ExcludeInternalRegistry && isOpenShiftInternalRegistry(ref.Registry) {
+				continue
+			}
 			key := fmt.Sprintf("%s:%s:%s:%s", pod.Namespace, owner.Kind, owner.Name, cs.Name)
 
 			rec, exists := byKey[key]
@@ -123,6 +133,9 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 				specImage = cs.Image
 			}
 			ref := ociref.Parse(specImage)
+			if opts.ExcludeInternalRegistry && isOpenShiftInternalRegistry(ref.Registry) {
+				continue
+			}
 			key := fmt.Sprintf("%s:%s:%s:init:%s", pod.Namespace, owner.Kind, owner.Name, cs.Name)
 
 			rec, exists := byKey[key]
@@ -158,9 +171,20 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 
 // DiscoveryOptions controls which pods are included.
 type DiscoveryOptions struct {
-	IncludedNamespaces []string
-	ExcludedNamespaces []string
-	SkipCompleted      bool
+	IncludedNamespaces      []string
+	ExcludedNamespaces      []string
+	ExcludedWorkloads       []WorkloadRef
+	SkipCompleted           bool
+	ExcludeInternalRegistry bool
+	WorkloadKind            string
+	WorkloadName            string
+}
+
+// WorkloadRef identifies a Kubernetes workload in a namespace.
+type WorkloadRef struct {
+	Namespace string
+	Kind      string
+	Name      string
 }
 
 // listPods returns all pods across included namespaces (or all namespaces).
@@ -277,11 +301,85 @@ func isPodCompleted(pod corev1.Pod) bool {
 
 func isNamespaceExcluded(ns string, opts DiscoveryOptions) bool {
 	for _, ex := range opts.ExcludedNamespaces {
+		if strings.HasSuffix(ex, "*") && strings.HasPrefix(ns, strings.TrimSuffix(ex, "*")) {
+			return true
+		}
 		if ex == ns {
 			return true
 		}
 	}
 	return false
+}
+
+func workloadMatches(owner ownerRef, opts DiscoveryOptions) bool {
+	if opts.WorkloadKind != "" && !strings.EqualFold(owner.Kind, opts.WorkloadKind) {
+		return false
+	}
+	if opts.WorkloadName != "" && owner.Name != opts.WorkloadName {
+		return false
+	}
+	return true
+}
+
+func isWorkloadExcluded(namespace string, owner ownerRef, opts DiscoveryOptions) bool {
+	for _, workload := range opts.ExcludedWorkloads {
+		if workload.Namespace != "" && workload.Namespace != namespace {
+			continue
+		}
+		if workload.Kind != "" && !strings.EqualFold(workload.Kind, owner.Kind) {
+			continue
+		}
+		if workload.Name != "" && workload.Name != owner.Name {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// CurrentWorkload returns the workload that owns the running image-roundup pod.
+// It is best-effort and only works in-cluster where the pod hostname and
+// service-account namespace are available.
+func (c *Client) CurrentWorkload(ctx context.Context) (WorkloadRef, bool, error) {
+	namespace, err := currentNamespace()
+	if err != nil {
+		return WorkloadRef{}, false, err
+	}
+
+	podName, err := os.Hostname()
+	if err != nil {
+		return WorkloadRef{}, false, fmt.Errorf("detecting pod hostname: %w", err)
+	}
+
+	pod, err := c.kc.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return WorkloadRef{}, false, fmt.Errorf("getting current pod %s/%s: %w", namespace, podName, err)
+	}
+
+	rsOwners, err := c.buildRSOwnerMap(ctx, []corev1.Pod{*pod})
+	if err != nil {
+		c.log.Warn("could not resolve current pod ReplicaSet owner", zap.Error(err))
+	}
+	owner := resolvedOwner(*pod, rsOwners)
+	return WorkloadRef{Namespace: namespace, Kind: owner.Kind, Name: owner.Name}, true, nil
+}
+
+func currentNamespace() (string, error) {
+	if namespace := os.Getenv("POD_NAMESPACE"); namespace != "" {
+		return namespace, nil
+	}
+
+	const namespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	namespaceBytes, err := os.ReadFile(namespacePath)
+	if err != nil {
+		return "", fmt.Errorf("reading service account namespace: %w", err)
+	}
+
+	namespace := strings.TrimSpace(string(namespaceBytes))
+	if namespace == "" {
+		return "", fmt.Errorf("service account namespace is empty")
+	}
+	return namespace, nil
 }
 
 // containerSpecImage returns the image configured in the pod spec for the named container.

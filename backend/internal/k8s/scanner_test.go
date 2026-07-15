@@ -1,6 +1,10 @@
 package k8s
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/yamlwrangler/image-roundup/backend/internal/models"
+)
 
 func TestDigestMatches(t *testing.T) {
 	tests := []struct {
@@ -85,5 +89,62 @@ func TestIsOpenShiftInternalRegistry(t *testing.T) {
 				t.Fatalf("isOpenShiftInternalRegistry() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestIsNamespaceExcludedSupportsPrefixWildcard(t *testing.T) {
+	opts := DiscoveryOptions{ExcludedNamespaces: []string{"kube-system", "openshift*"}}
+
+	tests := []struct {
+		namespace string
+		want      bool
+	}{
+		{namespace: "kube-system", want: true},
+		{namespace: "openshift-gitops", want: true},
+		{namespace: "openshift", want: true},
+		{namespace: "image-roundup", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.namespace, func(t *testing.T) {
+			got := isNamespaceExcluded(tt.namespace, opts)
+			if got != tt.want {
+				t.Fatalf("isNamespaceExcluded() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsWorkloadExcluded(t *testing.T) {
+	opts := DiscoveryOptions{ExcludedWorkloads: []WorkloadRef{
+		{Namespace: "image-roundup", Kind: "Deployment", Name: "image-roundup"},
+	}}
+
+	if !isWorkloadExcluded("image-roundup", ownerRef{Kind: "Deployment", Name: "image-roundup"}, opts) {
+		t.Fatal("expected image-roundup deployment to be excluded")
+	}
+	if isWorkloadExcluded("image-roundup", ownerRef{Kind: "Deployment", Name: "other"}, opts) {
+		t.Fatal("expected other deployment to be included")
+	}
+	if isWorkloadExcluded("lab", ownerRef{Kind: "Deployment", Name: "image-roundup"}, opts) {
+		t.Fatal("expected matching name in another namespace to be included")
+	}
+}
+
+func TestScopedRecordMatcher(t *testing.T) {
+	matches := scopedRecordMatcher(DiscoveryOptions{
+		IncludedNamespaces: []string{"media"},
+		WorkloadKind:       "Deployment",
+		WorkloadName:       "plex",
+	})
+
+	if !matches(&models.ImageRecord{Namespace: "media", WorkloadKind: "Deployment", WorkloadName: "plex"}) {
+		t.Fatal("expected scoped matcher to match target workload")
+	}
+	if matches(&models.ImageRecord{Namespace: "media", WorkloadKind: "Deployment", WorkloadName: "radarr"}) {
+		t.Fatal("expected scoped matcher to ignore other workloads")
+	}
+	if matches(&models.ImageRecord{Namespace: "lab", WorkloadKind: "Deployment", WorkloadName: "plex"}) {
+		t.Fatal("expected scoped matcher to ignore other namespaces")
 	}
 }

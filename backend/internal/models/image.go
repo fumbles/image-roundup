@@ -84,15 +84,23 @@ type ScanStatus struct {
 	Errors     []string   `json:"errors,omitempty"`
 }
 
+// ScanRequest scopes a manual scan. Empty fields mean a full scan.
+type ScanRequest struct {
+	Namespace    string `json:"namespace,omitempty"`
+	WorkloadKind string `json:"workloadKind,omitempty"`
+	WorkloadName string `json:"workloadName,omitempty"`
+}
+
 // Settings mirrors the configurable options.
 type Settings struct {
-	ScanIntervalSeconds    int      `json:"scanIntervalSeconds"`
-	IncludedNamespaces     []string `json:"includedNamespaces"`
-	ExcludedNamespaces     []string `json:"excludedNamespaces"`
-	IncludeCompletedPods   bool     `json:"includeCompletedPods"`
-	RegistryTimeoutSeconds int      `json:"registryTimeoutSeconds"`
-	Theme                  string   `json:"theme"` // system | light | dark
-	ShortDigests           bool     `json:"shortDigests"`
+	ScanIntervalSeconds     int      `json:"scanIntervalSeconds"`
+	IncludedNamespaces      []string `json:"includedNamespaces"`
+	ExcludedNamespaces      []string `json:"excludedNamespaces"`
+	IncludeCompletedPods    bool     `json:"includeCompletedPods"`
+	ExcludeInternalRegistry bool     `json:"excludeInternalRegistry"`
+	RegistryTimeoutSeconds  int      `json:"registryTimeoutSeconds"`
+	Theme                   string   `json:"theme"` // system | light | dark
+	ShortDigests            bool     `json:"shortDigests"`
 }
 
 // DefaultSettings returns safe defaults.
@@ -100,7 +108,7 @@ func DefaultSettings() Settings {
 	return Settings{
 		ScanIntervalSeconds:    28800, // 8 hours
 		IncludedNamespaces:     nil,
-		ExcludedNamespaces:     []string{"kube-system", "kube-public", "kube-node-lease"},
+		ExcludedNamespaces:     []string{"kube-system", "kube-public", "kube-node-lease", "openshift*"},
 		IncludeCompletedPods:   false,
 		RegistryTimeoutSeconds: 15,
 		Theme:                  "system",

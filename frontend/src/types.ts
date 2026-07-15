@@ -41,6 +41,12 @@ export interface ScanStatus {
   errors: string[]
 }
 
+export interface ScanRequest {
+  namespace?: string
+  workloadKind?: string
+  workloadName?: string
+}
+
 export interface RegistryInfo {
   hostname: string
   imageCount: number
@@ -54,6 +60,7 @@ export interface Settings {
   includedNamespaces: string[]
   excludedNamespaces: string[]
   includeCompletedPods: boolean
+  excludeInternalRegistry: boolean
   registryTimeoutSeconds: number
   theme: 'system' | 'light' | 'dark'
   shortDigests: boolean

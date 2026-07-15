@@ -39,6 +39,23 @@ func (s *Store) SetRecords(records []*models.ImageRecord) {
 	s.lastScan = &now
 }
 
+// ReplaceWhere replaces records matching shouldReplace with the provided
+// records, then updates LastScan. It is used for scoped rescans.
+func (s *Store) ReplaceWhere(records []*models.ImageRecord, shouldReplace func(*models.ImageRecord) bool) {
+	now := time.Now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, r := range s.records {
+		if shouldReplace(r) {
+			delete(s.records, id)
+		}
+	}
+	for _, r := range records {
+		s.records[r.ID] = r
+	}
+	s.lastScan = &now
+}
+
 // UpdateRecord updates or inserts a single record.
 func (s *Store) UpdateRecord(r *models.ImageRecord) {
 	s.mu.Lock()

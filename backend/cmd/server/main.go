@@ -46,9 +46,10 @@ func main() {
 	scanner := k8s.NewScanner(kubeClient, checker, store, log)
 
 	scanOpts := k8s.DiscoveryOptions{
-		IncludedNamespaces: cfg.Settings.IncludedNamespaces,
-		ExcludedNamespaces: cfg.Settings.ExcludedNamespaces,
-		SkipCompleted:      !cfg.Settings.IncludeCompletedPods,
+		IncludedNamespaces:      cfg.Settings.IncludedNamespaces,
+		ExcludedNamespaces:      cfg.Settings.ExcludedNamespaces,
+		SkipCompleted:           !cfg.Settings.IncludeCompletedPods,
+		ExcludeInternalRegistry: cfg.Settings.ExcludeInternalRegistry,
 	}
 
 	// afterScan is called after every completed scan (scheduled or manual).
@@ -71,8 +72,23 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	startupScanOpts := scanOpts
+	if cfg.InCluster {
+		detectCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		if current, ok, err := kubeClient.CurrentWorkload(detectCtx); err != nil {
+			log.Warn("could not detect current workload for startup scan exclusion", zap.Error(err))
+		} else if ok {
+			startupScanOpts.ExcludedWorkloads = append(startupScanOpts.ExcludedWorkloads, current)
+			log.Info("excluding current workload from startup scan",
+				zap.String("namespace", current.Namespace),
+				zap.String("kind", current.Kind),
+				zap.String("name", current.Name))
+		}
+		cancel()
+	}
+
 	// Start scan loop in background; persist after each completed scan.
-	go scanner.RunLoop(ctx, scanOpts, interval, afterScan)
+	go scanner.RunLoopWithStartupOptions(ctx, startupScanOpts, scanOpts, interval, afterScan)
 
 	srv := &http.Server{
 		Addr:         cfg.ListenAddr,

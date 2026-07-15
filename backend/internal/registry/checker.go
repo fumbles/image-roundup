@@ -62,16 +62,17 @@ type Result struct {
 // so that it can be compared against the running container's imageID, while
 // also preserving the index digest for display.
 func (c *Checker) Resolve(ctx context.Context, imageRef string) Result {
+	return c.ResolveWithAuth(ctx, imageRef, nil)
+}
+
+// ResolveWithAuth is Resolve with an optional explicit authenticator.
+func (c *Checker) ResolveWithAuth(ctx context.Context, imageRef string, auth authn.Authenticator) Result {
 	ref, err := name.ParseReference(imageRef, name.WeakValidation)
 	if err != nil {
 		return Result{Error: fmt.Errorf("parsing reference %q: %w", imageRef, err)}
 	}
 
-	opts := []remote.Option{
-		remote.WithContext(ctx),
-		remote.WithAuthFromKeychain(authn.DefaultKeychain),
-		remote.WithTransport(c.httpClient.Transport),
-	}
+	opts := c.remoteOptions(ctx, auth)
 
 	desc, err := remote.Get(ref, opts...)
 	if err != nil {
@@ -147,16 +148,17 @@ type LatestTagResult struct {
 // architecture suffix at all) are considered.  This prevents e.g. an amd64
 // workload from being told that an armhf tag is "newer".
 func (c *Checker) LatestTag(ctx context.Context, imageRef, currentTag, platform string) LatestTagResult {
+	return c.LatestTagWithAuth(ctx, imageRef, currentTag, platform, nil)
+}
+
+// LatestTagWithAuth is LatestTag with an optional explicit authenticator.
+func (c *Checker) LatestTagWithAuth(ctx context.Context, imageRef, currentTag, platform string, auth authn.Authenticator) LatestTagResult {
 	ref, err := name.ParseReference(imageRef, name.WeakValidation)
 	if err != nil {
 		return LatestTagResult{Error: fmt.Errorf("parsing reference %q: %w", imageRef, err)}
 	}
 
-	opts := []remote.Option{
-		remote.WithContext(ctx),
-		remote.WithAuthFromKeychain(authn.DefaultKeychain),
-		remote.WithTransport(c.httpClient.Transport),
-	}
+	opts := c.remoteOptions(ctx, auth)
 
 	// Use the registry + repository part only (strip the tag/digest).
 	repo := ref.Context()
@@ -166,14 +168,14 @@ func (c *Checker) LatestTag(ctx context.Context, imageRef, currentTag, platform 
 		return LatestTagResult{Error: fmt.Errorf("listing tags for %q: %w", repo.String(), err)}
 	}
 
-	best := selectLatestSemverTag(tags, currentTag, platform)
+	best := selectLatestSemverTag(tags, currentTag, platform, repo.String())
 	if best == "" || best == currentTag {
 		return LatestTagResult{} // nothing to report
 	}
 
 	// Resolve the digest of the best tag.
 	bestRef := repo.Tag(best)
-	result := c.Resolve(ctx, bestRef.String())
+	result := c.ResolveWithAuth(ctx, bestRef.String(), auth)
 	if result.Error != nil {
 		// We know the tag exists but couldn't get the digest — still return the tag.
 		return LatestTagResult{Tag: best}
@@ -181,10 +183,25 @@ func (c *Checker) LatestTag(ctx context.Context, imageRef, currentTag, platform 
 	return LatestTagResult{Tag: best, Digest: result.Digest}
 }
 
-func selectLatestSemverTag(tags []string, currentTag, platform string) string {
+func (c *Checker) remoteOptions(ctx context.Context, auth authn.Authenticator) []remote.Option {
+	opts := []remote.Option{
+		remote.WithContext(ctx),
+		remote.WithTransport(c.httpClient.Transport),
+	}
+	if auth != nil {
+		opts = append(opts, remote.WithAuth(auth))
+	} else {
+		opts = append(opts, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	}
+	return opts
+}
+
+func selectLatestSemverTag(tags []string, currentTag, platform, repository string) string {
 	// Derive the arch string to filter on (e.g. "amd64" from "linux/amd64").
 	archHint := archFromPlatform(platform)
-	best := bestSemver(filterByArch(tags, currentTag, archHint))
+	compatible := filterByTagCompatibility(filterByArch(tags, currentTag, archHint), currentTag, platform)
+	compatible = filterByMajorCompatibility(compatible, currentTag, repository)
+	best := bestSemver(compatible)
 	if best == "" || best == currentTag {
 		return ""
 	}
@@ -196,6 +213,51 @@ func selectLatestSemverTag(tags []string, currentTag, platform string) string {
 	}
 
 	return best
+}
+
+func filterByMajorCompatibility(tags []string, currentTag, repository string) []string {
+	current, ok := parseSemver(currentTag)
+	if !ok || !majorLockedRepository(repository) {
+		return tags
+	}
+
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		candidate, ok := parseSemver(tag)
+		if !ok || candidate.major == current.major {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
+func majorLockedRepository(repository string) bool {
+	normalized := strings.TrimPrefix(repository, "index.docker.io/")
+	normalized = strings.TrimPrefix(normalized, "docker.io/")
+	parts := strings.Split(normalized, "/")
+	name := parts[len(parts)-1]
+	return name == "postgres" || name == "postgresql"
+}
+
+func filterByTagCompatibility(tags []string, currentTag, platform string) []string {
+	currentVariants := tagVariantTokens(currentTag)
+	currentPrerelease := isPrereleaseTag(currentTag)
+
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		candidateVariants := tagVariantTokens(t)
+		if strings.HasPrefix(platform, "linux/") && hasAnyVariant(candidateVariants, windowsVariantTokens) {
+			continue
+		}
+		if !currentPrerelease && isPrereleaseTag(t) {
+			continue
+		}
+		if !variantsCompatible(currentVariants, candidateVariants) {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // archFromPlatform extracts the architecture component from a platform string
@@ -214,6 +276,13 @@ var knownArchSuffixes = []string{
 	"amd64", "arm64", "arm", "armhf", "armel",
 	"386", "s390x", "ppc64le", "mips64le",
 }
+
+var knownVariantTokens = []string{
+	"slim", "alpine", "bookworm", "bullseye", "buster", "trixie",
+	"jammy", "noble", "windowsservercore", "nanoserver",
+}
+
+var windowsVariantTokens = []string{"windowsservercore", "nanoserver"}
 
 // filterByArch filters tags so that only those compatible with the current
 // tag's architecture intent are returned.
@@ -259,6 +328,72 @@ func tagArchSuffix(tag string) string {
 		}
 	}
 	return ""
+}
+
+var tagTokenRE = regexp.MustCompile(`[a-z0-9]+`)
+var prereleaseTokenRE = regexp.MustCompile(`^(?:a|b|rc)\d+$`)
+
+func tagVariantTokens(tag string) map[string]struct{} {
+	tokens := tagTokenRE.FindAllString(strings.ToLower(tag), -1)
+	variants := make(map[string]struct{})
+	for _, token := range tokens {
+		for _, variant := range knownVariantTokens {
+			if token == variant || strings.HasPrefix(token, variant) {
+				variants[variant] = struct{}{}
+			}
+		}
+	}
+	return variants
+}
+
+func variantsCompatible(current, candidate map[string]struct{}) bool {
+	if len(current) == 0 {
+		return len(candidate) == 0
+	}
+	for variant := range current {
+		if _, ok := candidate[variant]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func hasAnyVariant(variants map[string]struct{}, candidates []string) bool {
+	for _, candidate := range candidates {
+		if _, ok := variants[candidate]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func isPrereleaseTag(tag string) bool {
+	rest := versionRemainder(tag)
+	if rest == "" {
+		return false
+	}
+	first := rest[0]
+	if first >= 'a' && first <= 'z' {
+		return true
+	}
+
+	for _, token := range tagTokenRE.FindAllString(strings.ToLower(rest), -1) {
+		switch {
+		case token == "a", token == "alpha", token == "b", token == "beta", token == "rc":
+			return true
+		case prereleaseTokenRE.MatchString(token):
+			return true
+		}
+	}
+	return false
+}
+
+func versionRemainder(tag string) string {
+	match := semverRE.FindStringIndex(strings.ToLower(tag))
+	if match == nil {
+		return ""
+	}
+	return strings.ToLower(tag[match[1]:])
 }
 
 // semverRE matches tags of the form v?MAJOR[.MINOR[.PATCH]][anything]

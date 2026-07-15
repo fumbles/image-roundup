@@ -1,6 +1,6 @@
 // Central API client — all requests go through here.
 import axios from 'axios'
-import type { ImageRecord, Summary, ScanStatus, RegistryInfo, Settings, ImagesQuery } from './types'
+import type { ImageRecord, Summary, ScanStatus, RegistryInfo, Settings, ImagesQuery, ScanRequest } from './types'
 
 const client = axios.create({ baseURL: '/api/v1' })
 
@@ -29,8 +29,8 @@ export async function getScan(): Promise<ScanStatus> {
   return data
 }
 
-export async function triggerScan(): Promise<void> {
-  await client.post('/scan')
+export async function triggerScan(scope?: ScanRequest): Promise<void> {
+  await client.post('/scan', scope ?? {})
 }
 
 export async function getSettings(): Promise<Settings> {

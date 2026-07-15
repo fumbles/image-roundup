@@ -81,7 +81,31 @@ export default function ImagesPage() {
     try {
       await triggerScan()
       await refetchScan()
-    } catch { /* best-effort */ }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to start scan')
+    }
+  }
+
+  const handleNamespaceRefresh = async (namespace: string) => {
+    try {
+      await triggerScan({ namespace })
+      await refetchScan()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to start namespace scan')
+    }
+  }
+
+  const handleWorkloadRefresh = async (record: ImageRecord) => {
+    try {
+      await triggerScan({
+        namespace: record.namespace,
+        workloadKind: record.workloadKind,
+        workloadName: record.workloadName,
+      })
+      await refetchScan()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to start workload scan')
+    }
   }
 
   const filteredRecords = useMemo(() => {
@@ -210,6 +234,19 @@ export default function ImagesPage() {
         >
           {statusOptions.map((o) => <SelectItem key={o.value} value={o.value} text={o.label} />)}
         </Select>
+
+        {query.namespace && (
+          <Button
+            kind="tertiary"
+            size="sm"
+            renderIcon={Renew}
+            disabled={scanStatus?.running}
+            onClick={() => handleNamespaceRefresh(query.namespace as string)}
+            style={{ alignSelf: 'flex-end' }}
+          >
+            Refresh namespace
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -287,7 +324,13 @@ export default function ImagesPage() {
                         </TableExpandRow>
                         <TableExpandedRow colSpan={tableHeaders.length + 1} key={`${row.id}-exp`}>
                           {original && (
-                            <ImageDetail record={original} shortDigests={true} />
+                            <ImageDetail
+                              record={original}
+                              shortDigests={true}
+                              scanDisabled={scanStatus?.running}
+                              onRefreshNamespace={handleNamespaceRefresh}
+                              onRefreshWorkload={handleWorkloadRefresh}
+                            />
                           )}
                         </TableExpandedRow>
                       </>

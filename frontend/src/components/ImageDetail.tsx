@@ -1,4 +1,6 @@
 import type { ImageRecord } from '../types'
+import { Button } from '@carbon/react'
+import { Renew } from '@carbon/icons-react'
 import StatusBadge from './StatusBadge'
 import CopyButton from './CopyButton'
 import { formatDigest, formatTime, relativeTime } from '../utils'
@@ -6,9 +8,18 @@ import { formatDigest, formatTime, relativeTime } from '../utils'
 interface ImageDetailProps {
   record: ImageRecord
   shortDigests: boolean
+  scanDisabled?: boolean
+  onRefreshNamespace?: (namespace: string) => void
+  onRefreshWorkload?: (record: ImageRecord) => void
 }
 
-export default function ImageDetail({ record, shortDigests }: ImageDetailProps) {
+export default function ImageDetail({
+  record,
+  shortDigests,
+  scanDisabled = false,
+  onRefreshNamespace,
+  onRefreshWorkload,
+}: ImageDetailProps) {
   const plainLang = (): string => {
     const isMultiArch = !!record.indexDigest
     switch (record.status) {
@@ -39,7 +50,29 @@ export default function ImageDetail({ record, shortDigests }: ImageDetailProps) 
 
   return (
     <div style={{ padding: '1rem 1.5rem' }}>
-      <p style={{ marginBottom: '1rem', color: 'var(--cds-text-secondary)' }}>{plainLang()}</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
+        <p style={{ margin: 0, color: 'var(--cds-text-secondary)', maxWidth: '72rem' }}>{plainLang()}</p>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Button
+            kind="tertiary"
+            size="sm"
+            renderIcon={Renew}
+            disabled={scanDisabled}
+            onClick={() => onRefreshNamespace?.(record.namespace)}
+          >
+            Refresh namespace
+          </Button>
+          <Button
+            kind="secondary"
+            size="sm"
+            renderIcon={Renew}
+            disabled={scanDisabled}
+            onClick={() => onRefreshWorkload?.(record)}
+          >
+            Refresh workload
+          </Button>
+        </div>
+      </div>
 
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 14 }}>
         <tbody>

@@ -8,6 +8,7 @@ func TestSelectLatestSemverTag(t *testing.T) {
 		tags       []string
 		currentTag string
 		platform   string
+		repository string
 		want       string
 	}{
 		{
@@ -38,11 +39,69 @@ func TestSelectLatestSemverTag(t *testing.T) {
 			platform:   "linux/amd64",
 			want:       "",
 		},
+		{
+			name: "keeps python slim tags in the linux slim family",
+			tags: []string{
+				"3.12-slim",
+				"3.13-slim",
+				"3.13-alpine",
+				"3.15.0b3-slim",
+				"3.15.0b3-windowsservercore-ltsc2025",
+			},
+			currentTag: "3.12-slim",
+			platform:   "linux/amd64",
+			want:       "3.13-slim",
+		},
+		{
+			name:       "generic linux tag ignores variant families",
+			tags:       []string{"15", "17-alpine", "16"},
+			currentTag: "15",
+			platform:   "linux/amd64",
+			want:       "16",
+		},
+		{
+			name: "postgres alpine stays on current major",
+			tags: []string{
+				"15-alpine",
+				"15.18-alpine3.24",
+				"16.10-alpine3.24",
+				"18.4-alpine3.24",
+			},
+			currentTag: "15-alpine",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/library/postgres",
+			want:       "15.18-alpine3.24",
+		},
+		{
+			name: "postgres generic stays on current major",
+			tags: []string{
+				"17",
+				"17.10",
+				"18.4",
+				"18.4-alpine3.24",
+			},
+			currentTag: "17",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/library/postgres",
+			want:       "17.10",
+		},
+		{
+			name: "non database images can suggest newer major",
+			tags: []string{
+				"1.31.1",
+				"1.31.2-perl",
+				"1.32.0",
+			},
+			currentTag: "1.31.1",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/library/nginx",
+			want:       "1.32.0",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := selectLatestSemverTag(tt.tags, tt.currentTag, tt.platform)
+			got := selectLatestSemverTag(tt.tags, tt.currentTag, tt.platform, tt.repository)
 			if got != tt.want {
 				t.Fatalf("selectLatestSemverTag() = %q, want %q", got, tt.want)
 			}

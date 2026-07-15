@@ -4,6 +4,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -223,10 +225,29 @@ func (h *Handler) postScan(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "scan already in progress"})
 		return
 	}
+
+	req, err := decodeScanRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	scoped := req.Namespace != "" || req.WorkloadKind != "" || req.WorkloadName != ""
+	if (req.WorkloadKind != "" || req.WorkloadName != "") && (req.Namespace == "" || req.WorkloadKind == "" || req.WorkloadName == "") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "workload scans require namespace, workloadKind, and workloadName"})
+		return
+	}
+
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
-		if err := h.scanner.Run(ctx, h.scanOpts); err != nil {
+		opts := scopedScanOptions(h.scanOpts, req)
+		var err error
+		if scoped {
+			err = h.scanner.RunScoped(ctx, opts)
+		} else {
+			err = h.scanner.Run(ctx, opts)
+		}
+		if err != nil {
 			h.log.Error("manual scan failed", zap.Error(err))
 			return
 		}
@@ -248,10 +269,47 @@ func (h *Handler) putSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	*h.settings = next
+	h.scanOpts = scanOptionsFromSettings(next)
 	writeJSON(w, http.StatusOK, h.settings)
 }
 
 // --- helpers ---
+
+func scanOptionsFromSettings(settings models.Settings) k8s.DiscoveryOptions {
+	return k8s.DiscoveryOptions{
+		IncludedNamespaces:      settings.IncludedNamespaces,
+		ExcludedNamespaces:      settings.ExcludedNamespaces,
+		SkipCompleted:           !settings.IncludeCompletedPods,
+		ExcludeInternalRegistry: settings.ExcludeInternalRegistry,
+	}
+}
+
+func decodeScanRequest(r *http.Request) (models.ScanRequest, error) {
+	var req models.ScanRequest
+	if r.Body == nil {
+		return req, nil
+	}
+	if r.ContentLength == 0 {
+		return req, nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		return req, err
+	}
+	req.Namespace = strings.TrimSpace(req.Namespace)
+	req.WorkloadKind = strings.TrimSpace(req.WorkloadKind)
+	req.WorkloadName = strings.TrimSpace(req.WorkloadName)
+	return req, nil
+}
+
+func scopedScanOptions(base k8s.DiscoveryOptions, req models.ScanRequest) k8s.DiscoveryOptions {
+	opts := base
+	if req.Namespace != "" {
+		opts.IncludedNamespaces = []string{req.Namespace}
+	}
+	opts.WorkloadKind = req.WorkloadKind
+	opts.WorkloadName = req.WorkloadName
+	return opts
+}
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")

@@ -56,6 +56,9 @@ func Load() Config {
 	if envBool("INCLUDE_COMPLETED_PODS", false) {
 		cfg.Settings.IncludeCompletedPods = true
 	}
+	if envBool("EXCLUDE_INTERNAL_REGISTRY", false) {
+		cfg.Settings.ExcludeInternalRegistry = true
+	}
 	return cfg
 }
 
