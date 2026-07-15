@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -78,8 +79,48 @@ func (s *Scanner) RunScoped(ctx context.Context, opts DiscoveryOptions) error {
 func (s *Scanner) checkRecords(ctx context.Context, records []*models.ImageRecord) []string {
 	var scanErrors []string
 	lookup := s.registryLookup(ctx, records)
+	jobs := make(chan *models.ImageRecord)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 
+	worker := func() {
+		defer wg.Done()
+		for rec := range jobs {
+			if errText := s.checkRecord(ctx, lookup, rec); errText != "" {
+				mu.Lock()
+				scanErrors = append(scanErrors, errText)
+				mu.Unlock()
+			}
+		}
+	}
+
+	for range scanWorkerCount(len(records)) {
+		wg.Add(1)
+		go worker()
+	}
+
+enqueue:
 	for _, rec := range records {
+		select {
+		case <-ctx.Done():
+			break enqueue
+		case jobs <- rec:
+		}
+	}
+	close(jobs)
+	wg.Wait()
+
+	return scanErrors
+}
+
+func (s *Scanner) checkRecord(ctx context.Context, lookup registryLookup, rec *models.ImageRecord) string {
+	select {
+	case <-ctx.Done():
+		return ctx.Err().Error()
+	default:
+	}
+
+	{
 		lookupImage := lookup.imageRef(rec.ConfiguredImage, rec.Registry)
 		lookupAuth := lookup.authenticator(rec.Registry)
 		registryCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -92,12 +133,11 @@ func (s *Scanner) checkRecords(ctx context.Context, records []*models.ImageRecor
 		if result.Error != nil {
 			rec.Status = models.StatusCheckFailed
 			rec.Error = result.Error.Error()
-			scanErrors = append(scanErrors, rec.Error)
 			s.log.Warn("registry check failed",
 				zap.String("image", rec.ConfiguredImage),
 				zap.String("lookupImage", lookupImage),
 				zap.Error(result.Error))
-			continue
+			return rec.Error
 		}
 
 		rec.RegistryDigest = result.Digest
@@ -133,7 +173,18 @@ func (s *Scanner) checkRecords(ctx context.Context, records []*models.ImageRecor
 		}
 	}
 
-	return scanErrors
+	return ""
+}
+
+func scanWorkerCount(records int) int {
+	switch {
+	case records <= 0:
+		return 1
+	case records < 8:
+		return records
+	default:
+		return 8
+	}
 }
 
 func scopedRecordMatcher(opts DiscoveryOptions) func(*models.ImageRecord) bool {

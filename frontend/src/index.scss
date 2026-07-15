@@ -3,18 +3,86 @@
 
 :root {
   --ir-font: 'IBM Plex Sans', system-ui, sans-serif;
+  --ir-accent: #ee0000;
+  --ir-accent-hover: #cc0000;
+  --ir-app-bg: color-mix(in srgb, var(--cds-background), var(--cds-layer-01) 44%);
+  --ir-panel-bg: color-mix(in srgb, var(--cds-layer-01), var(--cds-background) 18%);
+  --ir-soft-border: color-mix(in srgb, var(--cds-border-subtle), transparent 18%);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
 }
 
 body {
   font-family: var(--ir-font);
-  background: var(--cds-background);
+  background: var(--ir-app-bg);
   color: var(--cds-text-primary);
 }
 
 .ir-app-shell {
   min-height: 100vh;
-  background: var(--cds-background);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--ir-accent), transparent 88%), transparent 26rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--cds-layer-01), transparent 68%), transparent 22rem),
+    var(--ir-app-bg);
   color: var(--cds-text-primary);
+}
+
+.ir-header {
+  border-bottom: 1px solid var(--ir-soft-border);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--cds-background-inverse), transparent 94%);
+}
+
+.ir-header-name {
+  gap: 0.625rem;
+  font-weight: 600;
+}
+
+.ir-brand-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.375rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ir-accent), white 18%), var(--ir-accent)),
+    var(--ir-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ir-accent), white 38%);
+  clip-path: polygon(50% 0, 91% 24%, 91% 76%, 50% 100%, 9% 76%, 9% 24%);
+}
+
+.ir-content {
+  padding: 6rem 2rem 2rem;
+}
+
+.ir-content > * {
+  max-width: 120rem;
+}
+
+.ir-app-shell .cds--tile,
+.ir-app-shell .cds--data-table-container,
+.ir-settings-section {
+  background: var(--ir-panel-bg);
+  border: 1px solid var(--ir-soft-border);
+  box-shadow: 0 0.125rem 0.75rem color-mix(in srgb, var(--cds-background-inverse), transparent 94%);
+}
+
+.ir-app-shell .cds--tile {
+  border-radius: 0.375rem;
+}
+
+.ir-app-shell .cds--data-table-container {
+  overflow: hidden;
+  border-radius: 0.375rem;
+}
+
+.ir-app-shell .cds--btn--primary {
+  background-color: var(--ir-accent);
+}
+
+.ir-app-shell .cds--btn--primary:hover {
+  background-color: var(--ir-accent-hover);
 }
 
 /* Compact monospace digest display */
@@ -59,8 +127,8 @@ body {
 }
 
 .ir-settings-section {
-  border-top: 1px solid var(--cds-border-subtle);
-  padding-top: 1rem;
+  border-radius: 0.375rem;
+  padding: 1rem;
 }
 
 .ir-settings-section h2 {

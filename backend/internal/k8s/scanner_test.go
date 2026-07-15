@@ -131,6 +131,24 @@ func TestIsWorkloadExcluded(t *testing.T) {
 	}
 }
 
+func TestScanWorkerCount(t *testing.T) {
+	tests := []struct {
+		records int
+		want    int
+	}{
+		{records: 0, want: 1},
+		{records: 3, want: 3},
+		{records: 8, want: 8},
+		{records: 304, want: 8},
+	}
+
+	for _, tt := range tests {
+		if got := scanWorkerCount(tt.records); got != tt.want {
+			t.Fatalf("scanWorkerCount(%d) = %d, want %d", tt.records, got, tt.want)
+		}
+	}
+}
+
 func TestScopedRecordMatcher(t *testing.T) {
 	matches := scopedRecordMatcher(DiscoveryOptions{
 		IncludedNamespaces: []string{"media"},

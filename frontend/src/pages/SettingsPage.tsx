@@ -22,6 +22,14 @@ export default function SettingsPage() {
     getSettings()
       .then(setSettings)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load settings'))
+
+    const handleSettingsSaved = (event: Event) => {
+      const detail = (event as CustomEvent<Settings>).detail
+      if (detail) setSettings(detail)
+    }
+
+    window.addEventListener(SETTINGS_SAVED_EVENT, handleSettingsSaved)
+    return () => window.removeEventListener(SETTINGS_SAVED_EVENT, handleSettingsSaved)
   }, [])
 
   const handleSave = async () => {

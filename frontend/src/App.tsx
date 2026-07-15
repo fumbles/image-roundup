@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import {
   Header,
+  HeaderGlobalAction,
+  HeaderGlobalBar,
   HeaderName,
   HeaderNavigation,
   HeaderMenuItem,
   Content,
   Theme,
 } from '@carbon/react'
-import { getSettings } from './api'
+import { Moon, Sun } from '@carbon/icons-react'
+import { getSettings, putSettings } from './api'
 import OverviewPage from './pages/OverviewPage'
 import ImagesPage from './pages/ImagesPage'
 import RegistriesPage from './pages/RegistriesPage'
@@ -54,6 +57,7 @@ export default function App() {
 
 function AppShell() {
   const [theme, setTheme] = useState<CarbonTheme>(() => resolveCarbonTheme('system'))
+  const [settings, setSettings] = useState<Settings | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -66,7 +70,10 @@ function AppShell() {
 
     getSettings()
       .then((settings) => {
-        if (mounted) applyTheme(settings.theme)
+        if (mounted) {
+          setSettings(settings)
+          applyTheme(settings.theme)
+        }
       })
       .catch(() => {
         if (mounted) applyTheme('system')
@@ -74,13 +81,17 @@ function AppShell() {
 
     const handleSettingsSaved = (event: Event) => {
       const detail = (event as CustomEvent<Settings>).detail
-      if (detail?.theme) applyTheme(detail.theme)
+      if (detail?.theme) {
+        setSettings(detail)
+        applyTheme(detail.theme)
+      }
     }
 
     const media = window.matchMedia?.('(prefers-color-scheme: dark)')
     const handleSystemThemeChange = () => {
       getSettings()
         .then((settings) => {
+          setSettings(settings)
           if (settings.theme === 'system') applyTheme('system')
         })
         .catch(() => applyTheme('system'))
@@ -96,11 +107,25 @@ function AppShell() {
     }
   }, [])
 
+  const toggleTheme = async () => {
+    if (!settings) return
+    const nextTheme: Settings['theme'] = theme === 'g100' ? 'light' : 'dark'
+    const updated = await putSettings({ ...settings, theme: nextTheme })
+    setSettings(updated)
+    window.dispatchEvent(new CustomEvent(SETTINGS_SAVED_EVENT, { detail: updated }))
+  }
+
+  const dark = theme === 'g100'
+  const themeActionLabel = !settings
+    ? 'Loading theme settings'
+    : dark ? 'Use light theme' : 'Use dark theme'
+
   return (
     <Theme as="div" theme={theme} className="ir-app-shell">
-      <Header aria-label="Image Roundup">
-        <HeaderName href="/" prefix="">
-          Image Roundup
+      <Header aria-label="Image Roundup" className="ir-header">
+        <HeaderName href="/" prefix="" className="ir-header-name">
+          <span className="ir-brand-mark" aria-hidden="true" />
+          <span>Image Roundup</span>
         </HeaderName>
         <HeaderNavigation aria-label="Main navigation">
           <NavItem to="/overview">Overview</NavItem>
@@ -108,9 +133,18 @@ function AppShell() {
           <NavItem to="/registries">Registries</NavItem>
           <NavItem to="/settings">Settings</NavItem>
         </HeaderNavigation>
+        <HeaderGlobalBar>
+          <HeaderGlobalAction
+            aria-label={themeActionLabel}
+            tooltipAlignment="end"
+            onClick={toggleTheme}
+          >
+            {dark ? <Sun size={20} /> : <Moon size={20} />}
+          </HeaderGlobalAction>
+        </HeaderGlobalBar>
       </Header>
 
-      <Content style={{ paddingTop: 48 }}>
+      <Content className="ir-content">
         <Routes>
           <Route path="/" element={<Navigate to="/overview" replace />} />
           <Route path="/overview" element={<OverviewPage />} />
