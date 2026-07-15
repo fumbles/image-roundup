@@ -20,13 +20,16 @@ import {
   SelectItem,
   SkeletonText,
   InlineNotification,
+  Tag,
 } from '@carbon/react'
 import { Renew } from '@carbon/icons-react'
 import { getImages, triggerScan } from '../api'
 import type { ImageRecord, ImagesQuery, Status } from '../types'
 import StatusBadge from '../components/StatusBadge'
 import ImageDetail from '../components/ImageDetail'
-import { formatDigest, relativeTime } from '../utils'
+import ScanIndicator from '../components/ScanIndicator'
+import { useScanStatus } from '../hooks/useScanStatus'
+import { formatDigest } from '../utils'
 
 const PAGE_SIZE = 25
 
@@ -49,6 +52,8 @@ export default function ImagesPage() {
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState<ImagesQuery>({})
 
+  const { scanStatus, refetchScan } = useScanStatus()
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -64,9 +69,17 @@ export default function ImagesPage() {
 
   useEffect(() => { load() }, [load])
 
+  // Reload table data once a running scan finishes
+  const wasRunning = scanStatus?.running
+  useEffect(() => {
+    if (wasRunning === false) load()
+  }, [wasRunning]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleRefresh = async () => {
-    try { await triggerScan() } catch { /* best-effort */ }
-    setTimeout(load, 1500)
+    try {
+      await triggerScan()
+      await refetchScan()
+    } catch { /* best-effort */ }
   }
 
   const paged = records.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -81,7 +94,9 @@ export default function ImagesPage() {
     namespace: r.namespace,
     workloadName: `${r.workloadKind} / ${r.workloadName}`,
     containerName: r.containerName,
-    lastChecked: relativeTime(r.lastChecked),
+    lastChecked: r.lastChecked ? new Date(r.lastChecked).toLocaleString() : '—',
+    // _latestTag is a carry-through used when rendering the tag cell
+    _latestTag: r.latestTag,
     _record: r,
   }))
 
@@ -100,8 +115,19 @@ export default function ImagesPage() {
   return (
     <div style={{ padding: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0 }}>Images</h1>
-        <Button kind="secondary" size="sm" renderIcon={Renew} onClick={handleRefresh}>
+        <div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0 }}>Images</h1>
+          <div style={{ marginTop: 4 }}>
+            <ScanIndicator scanStatus={scanStatus} />
+          </div>
+        </div>
+        <Button
+          kind="secondary"
+          size="sm"
+          renderIcon={Renew}
+          onClick={handleRefresh}
+          disabled={scanStatus?.running}
+        >
           Refresh
         </Button>
       </div>
@@ -214,9 +240,18 @@ export default function ImagesPage() {
                         <TableExpandRow {...getRowProps({ row })} key={row.id}>
                           {row.cells.map((cell: any) => (
                             <TableCell key={cell.id}>
-                              {cell.info.header === 'status' && original
-                                ? <StatusBadge status={original.status} />
-                                : cell.value}
+                              {cell.info.header === 'status' && original ? (
+                                <StatusBadge status={original.status} />
+                              ) : cell.info.header === 'tag' && original?.latestTag ? (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                  {cell.value}
+                                  <Tag type="warm-gray" size="sm" title={`Latest: ${original.latestTag}`}>
+                                    ↑ {original.latestTag}
+                                  </Tag>
+                                </span>
+                              ) : (
+                                cell.value
+                              )}
                             </TableCell>
                           ))}
                         </TableExpandRow>

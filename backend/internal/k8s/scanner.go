@@ -65,6 +65,7 @@ func (s *Scanner) Run(ctx context.Context, opts DiscoveryOptions) error {
 		}
 
 		rec.RegistryDigest = result.Digest
+		rec.IndexDigest = result.IndexDigest
 		if result.Platform != "" {
 			rec.Platform = result.Platform
 		}
@@ -76,6 +77,22 @@ func (s *Scanner) Run(ctx context.Context, opts DiscoveryOptions) error {
 			rec.Status = models.StatusUpToDate
 		default:
 			rec.Status = models.StatusUpdateAvailable
+		}
+
+		// Only look up the latest semver tag when an update is already flagged.
+		// This avoids an extra API call per image on every scan.
+		if rec.Status == models.StatusUpdateAvailable {
+			latestCtx, latestCancel := context.WithTimeout(ctx, 20*time.Second)
+			lt := s.checker.LatestTag(latestCtx, rec.ConfiguredImage, rec.Tag)
+			latestCancel()
+			if lt.Error != nil {
+				s.log.Debug("latest tag lookup failed",
+					zap.String("image", rec.ConfiguredImage),
+					zap.Error(lt.Error))
+			} else {
+				rec.LatestTag = lt.Tag
+				rec.LatestTagDigest = lt.Digest
+			}
 		}
 	}
 

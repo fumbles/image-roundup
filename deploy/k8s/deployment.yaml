@@ -40,6 +40,8 @@ spec:
               value: ":8080"
             - name: DATA_DIR
               value: "/data"
+            - name: REGISTRY_AUTH_FILE
+              value: "/var/run/registry-auth/config.json"
             # Default scan interval is 8 h (28800 s).
             # Override here if you need a different cadence:
             # - name: SCAN_INTERVAL_SECONDS
@@ -47,6 +49,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: registry-auth
+              mountPath: /var/run/registry-auth
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /readyz

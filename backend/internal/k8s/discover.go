@@ -55,6 +55,13 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 		return nil, err
 	}
 
+	// Build a ReplicaSet → top-level owner map so we can resolve
+	// "ReplicaSet/ntfy-7bf8cc9cff" → "Deployment/ntfy".
+	rsOwners, err := c.buildRSOwnerMap(ctx, pods)
+	if err != nil {
+		c.log.Warn("could not build ReplicaSet owner map, workload names may show RS names", zap.Error(err))
+	}
+
 	// Build image records indexed by composite key.
 	byKey := make(map[string]*models.ImageRecord)
 
@@ -66,7 +73,7 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 			continue
 		}
 
-		owner := podOwner(pod)
+		owner := resolvedOwner(pod, rsOwners)
 		for _, cs := range pod.Status.ContainerStatuses {
 			specImage := containerSpecImage(pod, cs.Name)
 			if specImage == "" {
@@ -186,15 +193,76 @@ type ownerRef struct {
 	Name string
 }
 
-// podOwner returns the most meaningful owner for a pod.
-func podOwner(pod corev1.Pod) ownerRef {
+// resolvedOwner returns the top-level workload owner for a pod.
+// If the pod is owned by a ReplicaSet that is itself owned by a Deployment,
+// it returns the Deployment — not the intermediate ReplicaSet.
+// rsOwners maps "namespace/rsName" → ownerRef of the RS's owner.
+func resolvedOwner(pod corev1.Pod, rsOwners map[string]ownerRef) ownerRef {
 	for _, ref := range pod.OwnerReferences {
 		switch ref.Kind {
-		case "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job", "CronJob", "DeploymentConfig":
+		case "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "DeploymentConfig":
+			return ownerRef{Kind: ref.Kind, Name: ref.Name}
+		case "ReplicaSet":
+			key := pod.Namespace + "/" + ref.Name
+			if parent, ok := rsOwners[key]; ok {
+				return parent
+			}
+			// RS has no higher owner — it's a standalone ReplicaSet
 			return ownerRef{Kind: ref.Kind, Name: ref.Name}
 		}
 	}
 	return ownerRef{Kind: "Pod", Name: pod.Name}
+}
+
+// buildRSOwnerMap fetches every ReplicaSet referenced by the pod list and
+// returns a map of "namespace/rsName" → the RS's own owner (e.g. Deployment).
+func (c *Client) buildRSOwnerMap(ctx context.Context, pods []corev1.Pod) (map[string]ownerRef, error) {
+	// Collect the unique (namespace, rsName) pairs we need.
+	needed := make(map[string]struct{})
+	for _, pod := range pods {
+		for _, ref := range pod.OwnerReferences {
+			if ref.Kind == "ReplicaSet" {
+				needed[pod.Namespace+"/"+ref.Name] = struct{}{}
+			}
+		}
+	}
+	if len(needed) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]ownerRef, len(needed))
+
+	// Group by namespace for a single List call per namespace.
+	byNS := make(map[string][]string)
+	for key := range needed {
+		parts := strings.SplitN(key, "/", 2)
+		byNS[parts[0]] = append(byNS[parts[0]], parts[1])
+	}
+
+	for ns, rsNames := range byNS {
+		rsList, err := c.kc.AppsV1().ReplicaSets(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return result, fmt.Errorf("listing replicasets in %s: %w", ns, err)
+		}
+		// Index by name for quick lookup.
+		rsIndex := make(map[string]struct{ owners []metav1.OwnerReference })
+		for _, rs := range rsList.Items {
+			rsIndex[rs.Name] = struct{ owners []metav1.OwnerReference }{owners: rs.OwnerReferences}
+		}
+		for _, rsName := range rsNames {
+			rs, ok := rsIndex[rsName]
+			if !ok {
+				continue
+			}
+			for _, ref := range rs.owners {
+				if ref.Kind == "Deployment" {
+					result[ns+"/"+rsName] = ownerRef{Kind: "Deployment", Name: ref.Name}
+					break
+				}
+			}
+		}
+	}
+	return result, nil
 }
 
 func isPodCompleted(pod corev1.Pod) bool {

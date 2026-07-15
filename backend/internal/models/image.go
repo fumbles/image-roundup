@@ -29,9 +29,22 @@ type ImageRecord struct {
 	Tag             string `json:"tag"`
 
 	// RunningDigest is the digest of the image currently running in pods.
+	// For multi-arch images this is the platform-specific (linux/amd64) digest.
 	RunningDigest string `json:"runningDigest"`
-	// RegistryDigest is the digest the configured tag resolves to in the registry now.
+	// RegistryDigest is the platform-specific digest the configured tag resolves
+	// to in the registry. For multi-arch images this is the linux/amd64 digest —
+	// the same format as RunningDigest — so they can be compared directly.
 	RegistryDigest string `json:"registryDigest"`
+	// IndexDigest is the manifest list digest for multi-arch images (shown on
+	// Docker Hub as "Index Digest"). Empty for single-arch images.
+	IndexDigest string `json:"indexDigest,omitempty"`
+
+	// LatestTag is the newest semver tag found in the registry for this image's
+	// repository (e.g. "2.5.2" when the workload is running "2.5.1").
+	// Empty when unavailable or when the workload already uses the latest tag.
+	LatestTag string `json:"latestTag,omitempty"`
+	// LatestTagDigest is the digest the latest tag currently resolves to.
+	LatestTagDigest string `json:"latestTagDigest,omitempty"`
 
 	Platform string `json:"platform"`
 	Status   Status `json:"status"`

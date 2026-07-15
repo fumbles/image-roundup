@@ -10,11 +10,16 @@ interface ImageDetailProps {
 
 export default function ImageDetail({ record, shortDigests }: ImageDetailProps) {
   const plainLang = (): string => {
+    const isMultiArch = !!record.indexDigest
     switch (record.status) {
       case 'up_to_date':
-        return `The running container matches the current digest for tag "${record.tag}". No update is available.`
+        return isMultiArch
+          ? `The running container's linux/amd64 digest matches the current registry digest for tag "${record.tag}". No update is available.`
+          : `The running container matches the current digest for tag "${record.tag}". No update is available.`
       case 'update_available':
-        return `The workload is configured to use "${record.tag}", but the running digest differs from the digest currently assigned to that tag.`
+        return isMultiArch
+          ? `The workload is configured to use "${record.tag}". The running linux/amd64 digest differs from what the registry currently serves for that tag — a newer image is available.`
+          : `The workload is configured to use "${record.tag}", but the running digest differs from the digest currently assigned to that tag.`
       case 'check_failed':
         return `Could not retrieve the current digest from ${record.registry}. Check the registry error below.`
       case 'unknown':
@@ -57,13 +62,35 @@ export default function ImageDetail({ record, shortDigests }: ImageDetailProps) 
                 </span>
               : '—'
           )}
-          {row('Registry digest',
+          {row('Registry digest (platform)',
             record.registryDigest
               ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <code className="ir-digest">{formatDigest(record.registryDigest, shortDigests)}</code>
                   <CopyButton text={record.registryDigest} label="Copy digest" />
                 </span>
               : '—'
+          )}
+          {record.indexDigest && row('Registry index digest',
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <code className="ir-digest">{formatDigest(record.indexDigest, shortDigests)}</code>
+              <CopyButton text={record.indexDigest} label="Copy index digest" />
+            </span>
+          )}
+          {record.latestTag && row('Latest available tag',
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <code className="ir-digest" style={{ color: 'var(--cds-support-warning-inverse, #f1c21b)' }}>
+                {record.latestTag}
+              </code>
+              <CopyButton text={record.latestTag} label="Copy tag" />
+              {record.latestTagDigest && (
+                <>
+                  <code className="ir-digest" style={{ color: 'var(--cds-text-secondary)' }}>
+                    {formatDigest(record.latestTagDigest, shortDigests)}
+                  </code>
+                  <CopyButton text={record.latestTagDigest} label="Copy latest digest" />
+                </>
+              )}
+            </span>
           )}
           {row('Platform', record.platform || '—')}
           {row('Registry', record.registry)}

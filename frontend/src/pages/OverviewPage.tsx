@@ -6,29 +6,29 @@ import {
   Button,
 } from '@carbon/react'
 import { Renew } from '@carbon/icons-react'
-import { getSummary, triggerScan, getScan } from '../api'
-import type { Summary, ScanStatus, ImageRecord } from '../types'
+import { getSummary, triggerScan } from '../api'
+import type { Summary, ImageRecord } from '../types'
 import { getImages } from '../api'
-import { relativeTime } from '../utils'
 import StatusBadge from '../components/StatusBadge'
+import ScanIndicator from '../components/ScanIndicator'
+import { useScanStatus } from '../hooks/useScanStatus'
 
 export default function OverviewPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
-  const [scan, setScan] = useState<ScanStatus | null>(null)
   const [attention, setAttention] = useState<ImageRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const { scanStatus, refetchScan } = useScanStatus()
+
   const load = async () => {
     try {
       setLoading(true)
-      const [s, sc, imgs] = await Promise.all([
+      const [s, imgs] = await Promise.all([
         getSummary(),
-        getScan(),
         getImages({ status: 'update_available' }),
       ])
       setSummary(s)
-      setScan(sc)
       setAttention(imgs.slice(0, 10))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load data')
@@ -39,10 +39,16 @@ export default function OverviewPage() {
 
   useEffect(() => { load() }, [])
 
+  // Reload page data once a running scan finishes
+  const wasRunning = scanStatus?.running
+  useEffect(() => {
+    if (wasRunning === false) load()
+  }, [wasRunning]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleScan = async () => {
     try {
       await triggerScan()
-      setTimeout(load, 1500)
+      await refetchScan()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Scan trigger failed')
     }
@@ -53,19 +59,16 @@ export default function OverviewPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0 }}>Overview</h1>
-          {scan && (
-            <p style={{ color: 'var(--cds-text-secondary)', fontSize: 13, margin: '4px 0 0' }}>
-              Last scan: {relativeTime(scan.lastScan)}
-              {scan.running && ' · Scan in progress…'}
-            </p>
-          )}
+          <div style={{ marginTop: 4 }}>
+            <ScanIndicator scanStatus={scanStatus} />
+          </div>
         </div>
         <Button
           kind="secondary"
           size="sm"
           renderIcon={Renew}
           onClick={handleScan}
-          disabled={scan?.running}
+          disabled={scanStatus?.running}
         >
           Refresh
         </Button>

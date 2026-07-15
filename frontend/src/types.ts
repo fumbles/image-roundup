@@ -14,6 +14,9 @@ export interface ImageRecord {
   tag: string
   runningDigest: string
   registryDigest: string
+  indexDigest?: string
+  latestTag?: string
+  latestTagDigest?: string
   platform: string
   status: Status
   podNames: string[]
