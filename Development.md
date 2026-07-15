@@ -32,6 +32,7 @@ backend/internal/models   Shared backend API/data models
 backend/internal/registry OCI registry digest and tag resolution
 backend/pkg/ociref        Image reference parser
 frontend/src              React/TypeScript/Carbon UI
+docs/screenshots          README screenshots
 deploy/k8s                Kubernetes/OpenShift manifests
 build.sh                  Host build + Docker buildx push
 test.sh                   Formatting, Go tests, frontend lint/build
@@ -75,7 +76,9 @@ the REST API.
 2. `k8s.Client.DiscoverImages` lists pods, resolves top-level workload owners,
    and builds `models.ImageRecord` values.
 3. `k8s.Scanner.checkRecords` resolves registry digests with bounded
-   concurrency.
+   concurrency. Duplicate lookup image references in the same scan are grouped,
+   so a shared image is checked once and the result is fanned out to each
+   workload record.
 4. Each record gets a status:
    - `up_to_date`: running digest matches registry platform digest or index digest
    - `update_available`: running digest differs from registry digest
@@ -158,6 +161,7 @@ openshift*
   in-cluster, which avoids detecting the previous rollout image while the new
   pod is starting
 - registry checks run with bounded parallelism, currently capped at 8 workers
+- duplicate lookup image references are de-duplicated per scan
 
 OpenShift integrated registry handling lives here too. If an image uses the
 internal registry service name, the scanner can detect the registry Route and
@@ -173,12 +177,17 @@ use the service account token for registry auth.
 - list semver-like tags for newer tag hints
 - filter incompatible arch/variant/pre-release tags
 - keep Postgres/PostgreSQL suggestions within the current major version
+- keep LinuxServer images in their configured stream (`latest`, `develop`, or
+  `nightly`)
+- read Docker Hub auth from Docker config aliases such as `docker.io` when
+  `go-containerregistry` asks for `index.docker.io`
 
 Important behavior:
 
 - Digest comparison uses platform digest and index digest.
 - Latest tag hints are display-only; they do not affect status.
 - Postgres major jumps are intentionally not suggested as normal updates.
+- LinuxServer stream jumps are intentionally not suggested as normal updates.
 
 ### Cache and Persistence
 
@@ -209,13 +218,22 @@ Key files:
 - `frontend/src/pages/RegistriesPage.tsx`: registry summary
 - `frontend/src/pages/SettingsPage.tsx`: scan/display settings
 - `frontend/src/index.scss`: Carbon import and app-level styling
+- `frontend/public/favicon.svg`: tab icon
 
 Theme is stored through the settings API. The header toggle switches between
 light and dark and dispatches a local `SETTINGS_SAVED_EVENT` so open pages stay
 in sync.
 
 Search in the Images page is client-side over the currently fetched records.
-Namespace/registry/kind/status filters still go through the API.
+Namespace/registry/kind/status filters are URL-backed. Most status filters are
+sent to the API; `status=unknown_failed` is a UI-only convenience filter that
+combines `unknown` and `check_failed` locally.
+
+Overview summary tiles deep-link into the filtered Images or Registries pages.
+The expanded image details include scoped refresh actions and registry
+inspection links for supported registries. The Images table uses fixed layout
+and wraps long image/workload text so the common desktop view does not require
+horizontal scrolling.
 
 ## Configuration
 
@@ -227,7 +245,8 @@ Environment variables:
 | `IN_CLUSTER` | `true` | Use in-cluster Kubernetes config |
 | `KUBECONFIG` | empty | Used when `IN_CLUSTER=false`; falls back to client-go default |
 | `DATA_DIR` | empty | Enables NDJSON record persistence |
-| `STATIC_DIR` | `./static` | SPA directory; set empty to disable static serving |
+| `STATIC_DIR` | `./static` | SPA directory used by the backend |
+| `DOCKER_CONFIG` | Docker default | Directory containing registry auth `config.json` |
 | `SCAN_INTERVAL_SECONDS` | `28800` | 8 hours |
 | `REGISTRY_TIMEOUT_SECONDS` | `15` | Per registry request timeout |
 | `INCLUDED_NAMESPACES` | empty | Comma-separated allowlist; empty means all |
@@ -235,6 +254,10 @@ Environment variables:
 | `INCLUDE_COMPLETED_PODS` | `false` | Include succeeded/failed pods |
 | `EXCLUDE_INTERNAL_REGISTRY` | `false` | Skip OpenShift internal registry images |
 | `THEME` | `system` | `system`, `light`, `dark` |
+
+The Kubernetes deployment currently sets `DATA_DIR=/data`,
+`DOCKER_CONFIG=/var/run/registry-auth`, and
+`EXCLUDE_INTERNAL_REGISTRY=true`.
 
 ## Local Development
 
@@ -248,9 +271,7 @@ npm ci
 Run backend out of cluster:
 
 ```bash
-IN_CLUSTER=false \
-STATIC_DIR= \
-go run ./backend/cmd/server
+IN_CLUSTER=false go run ./backend/cmd/server
 ```
 
 Run frontend dev server:
@@ -300,21 +321,35 @@ npm run build
 `build.sh` is the normal release path.
 
 ```bash
-./build.sh [tag] [platform]
+./build.sh [version-tag] [platform]
 ```
 
 Defaults:
 
 - image: `fumbles/image-roundup`
-- tag: `latest`
+- version tag: `1.0.0`
+- moving tag: `latest`
 - platform: `linux/amd64`
+
+Examples:
+
+```bash
+./build.sh 1.0.0
+./build.sh 1.0.1
+./build.sh 1.0.1 linux/amd64
+```
 
 The script:
 
 1. runs `npm ci` and builds `frontend/dist`
 2. cross-compiles a static linux/amd64 Go binary to `./image-roundup`
 3. asks for confirmation
-4. runs `docker buildx build --push`
+4. runs `docker buildx build --push` with both `:version-tag` and `:latest`
+
+Pass a new immutable version tag for each release. `latest` is intentionally
+reserved as the moving deployment tag and cannot be passed as the version tag.
+The script does not auto-increment versions; pass `1.0.1`, `1.0.2`, etc.
+explicitly for later patch releases.
 
 The Dockerfile expects the binary and `frontend/dist` to already exist. It
 copies both into a distroless static image.
@@ -336,6 +371,7 @@ The deployment:
 - mounts `/data` from PVC for cached record persistence
 - optionally mounts registry auth at `/var/run/registry-auth`
 - sets `DOCKER_CONFIG=/var/run/registry-auth`
+- sets `EXCLUDE_INTERNAL_REGISTRY=true` by default
 - exposes port `8080` through a Service
 
 The RBAC is cluster-wide read-only for pods/namespaces and common workload
@@ -346,6 +382,8 @@ internal registry pull authorization.
 
 The registry checker uses `authn.DefaultKeychain`, so Docker config auth works
 when `DOCKER_CONFIG` points at a directory containing `config.json`.
+There is also a Docker Hub alias fallback for configs that store credentials
+under `docker.io` while registry requests are made to `index.docker.io`.
 
 In Kubernetes, use `deploy/k8s/registry-auth.sh` as the starting point for
 creating the registry auth secret. The deployment mounts that secret at:
@@ -466,6 +504,7 @@ Add tests in `backend/internal/registry/checker_test.go`, especially for:
 - distro variants (`alpine`, `slim`, `bookworm`, etc.)
 - prereleases
 - major-version safety rules for stateful software
+- stream/channel rules such as LinuxServer `latest`, `develop`, and `nightly`
 
 ### Adjust Scan Filtering
 
@@ -481,10 +520,11 @@ Cache replacement behavior for scoped scans lives in:
 - Do not compare only manifest-list/index digest for multi-arch images; the
   running container usually reports the platform digest.
 - Do not suggest Postgres major-version jumps as ordinary updates.
+- Do not suggest LinuxServer stream jumps as ordinary updates.
 - Digest-pinned images may not have a meaningful tag lookup.
 - OpenShift internal registry service host and Route host are different; route
   lookup is needed for normal HTTPS registry access.
 - Settings are not persisted to disk today.
 - `build.sh` requires Docker/buildx and pushes after confirmation.
+- `build.sh` does not auto-increment version tags.
 - `Dockerfile` depends on host-built artifacts from `build.sh`.
-

@@ -2,12 +2,18 @@
 set -euo pipefail
 
 # ─── Config ──────────────────────────────────────────────────────────────────
-IMAGE="fumbles/image-roundup"
-DEFAULT_TAG="latest"
+IMAGE="${IMAGE:-fumbles/image-roundup}"
+LATEST_TAG="${LATEST_TAG:-latest}"
+DEFAULT_VERSION_TAG="${DEFAULT_VERSION_TAG:-1.0.0}"
 
 # ─── Args ────────────────────────────────────────────────────────────────────
-TAG="${1:-$DEFAULT_TAG}"
+VERSION_TAG="${1:-$DEFAULT_VERSION_TAG}"
 PLATFORM="${2:-linux/amd64}"
+
+if [[ "${VERSION_TAG}" == "${LATEST_TAG}" ]]; then
+  echo "Version tag cannot be '${LATEST_TAG}'. Pass an immutable version tag, e.g. ./build.sh 1.0.0"
+  exit 1
+fi
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 red()   { echo -e "\033[0;31m$*\033[0m"; }
@@ -60,7 +66,8 @@ green "✓ image-roundup binary ready ($(du -sh image-roundup | cut -f1), linux/
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""
 bold "Build summary"
-echo "  Image    : ${IMAGE}:${TAG}"
+echo "  Image    : ${IMAGE}:${VERSION_TAG}"
+echo "  Also tag : ${IMAGE}:${LATEST_TAG}"
 echo "  Platform : ${PLATFORM}"
 echo "  Context  : $(pwd)"
 echo ""
@@ -68,12 +75,13 @@ read -r -p "Proceed with docker build & push? [y/N] " confirm
 [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
 
 # ─── Docker build & push ──────────────────────────────────────────────────────
-step "Building and pushing ${IMAGE}:${TAG}"
+step "Building and pushing ${IMAGE}:${VERSION_TAG} and ${IMAGE}:${LATEST_TAG}"
 
 if docker buildx version &>/dev/null; then
   docker buildx build \
     --platform "$PLATFORM" \
-    -t "${IMAGE}:${TAG}" \
+    -t "${IMAGE}:${VERSION_TAG}" \
+    -t "${IMAGE}:${LATEST_TAG}" \
     --push \
     .
 else
@@ -86,8 +94,9 @@ fi
 echo ""
 green "✓ Done!"
 echo ""
-echo "  Pull    : docker pull ${IMAGE}:${TAG}"
-echo "  Run     : docker run -p 8080:8080 ${IMAGE}:${TAG}"
+echo "  Pull    : docker pull ${IMAGE}:${VERSION_TAG}"
+echo "          : docker pull ${IMAGE}:${LATEST_TAG}"
+echo "  Run     : docker run -p 8080:8080 ${IMAGE}:${VERSION_TAG}"
 echo "  Open    : http://localhost:8080"
 echo ""
 echo "  Deploy  : kubectl apply -f deploy/k8s/"
