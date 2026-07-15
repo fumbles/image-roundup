@@ -40,8 +40,11 @@ spec:
               value: ":8080"
             - name: DATA_DIR
               value: "/data"
-            - name: REGISTRY_AUTH_FILE
-              value: "/var/run/registry-auth/config.json"
+            # DOCKER_CONFIG must point to a directory containing config.json.
+            # The registry-auth secret is mounted at that path below.
+            # Remove this env var (and the volume) if no private registries are needed.
+            - name: DOCKER_CONFIG
+              value: "/var/run/registry-auth"
             # Default scan interval is 8 h (28800 s).
             # Override here if you need a different cadence:
             # - name: SCAN_INTERVAL_SECONDS

@@ -83,7 +83,7 @@ func (s *Scanner) Run(ctx context.Context, opts DiscoveryOptions) error {
 		// This avoids an extra API call per image on every scan.
 		if rec.Status == models.StatusUpdateAvailable {
 			latestCtx, latestCancel := context.WithTimeout(ctx, 20*time.Second)
-			lt := s.checker.LatestTag(latestCtx, rec.ConfiguredImage, rec.Tag)
+			lt := s.checker.LatestTag(latestCtx, rec.ConfiguredImage, rec.Tag, rec.Platform)
 			latestCancel()
 			if lt.Error != nil {
 				s.log.Debug("latest tag lookup failed",

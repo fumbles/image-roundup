@@ -1,0 +1,53 @@
+# Registry pull-secret for private registries (e.g. registry.redhat.io).
+#
+# This file is a placeholder — do not commit real credentials.
+# Choose ONE of the options below to populate the secret, then apply it.
+#
+# ─────────────────────────────────────────────────────────────────────
+# OPTION 1 (recommended for OpenShift): copy the cluster pull-secret
+#   The cluster-wide pull-secret in openshift-config already contains
+#   credentials for registry.redhat.io and other Red Hat registries.
+#
+#   oc get secret pull-secret -n openshift-config \
+#     -o jsonpath='{.data.\.dockerconfigjson}' \
+#     | base64 -d > /tmp/pull-secret.json
+#
+#   kubectl create secret generic registry-auth \
+#     --namespace image-roundup \
+#     --from-file=config.json=/tmp/pull-secret.json \
+#     --dry-run=client -o yaml \
+#     | kubectl apply -f -
+#
+#   rm /tmp/pull-secret.json
+#
+# ─────────────────────────────────────────────────────────────────────
+# OPTION 2: build from a local docker/podman login
+#   Log in to any registries you need first, e.g.:
+#     docker login registry.redhat.io
+#     docker login registry.access.redhat.com
+#
+#   kubectl create secret generic registry-auth \
+#     --namespace image-roundup \
+#     --from-file=config.json=$HOME/.docker/config.json \
+#     --dry-run=client -o yaml \
+#     | kubectl apply -f -
+#
+# ─────────────────────────────────────────────────────────────────────
+# The Deployment mounts this secret at /var/run/registry-auth and sets
+# DOCKER_CONFIG=/var/run/registry-auth so go-containerregistry picks up
+# the credentials automatically via authn.DefaultKeychain.
+#
+# If you have no private registries at all, remove:
+#   - this file
+#   - the registry-auth volume + volumeMount in deployment.yaml
+#   - the DOCKER_CONFIG env var in deployment.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: registry-auth
+  namespace: image-roundup
+type: Opaque
+data:
+  # Placeholder — replace via one of the options above before applying.
+  # base64 of '{}'
+  config.json: e30K
