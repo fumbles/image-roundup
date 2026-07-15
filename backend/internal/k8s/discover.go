@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -20,6 +21,7 @@ import (
 // Client wraps the Kubernetes client and discovery logic.
 type Client struct {
 	kc  kubernetes.Interface
+	dyn dynamic.Interface
 	log *zap.Logger
 }
 
@@ -43,7 +45,11 @@ func New(inCluster bool, kubeConfigPath string, log *zap.Logger) (*Client, error
 	if err != nil {
 		return nil, fmt.Errorf("building kube client: %w", err)
 	}
-	return &Client{kc: kc, log: log}, nil
+	dyn, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("building dynamic kube client: %w", err)
+	}
+	return &Client{kc: kc, dyn: dyn, log: log}, nil
 }
 
 // DiscoverImages returns a deduplicated list of ImageRecords found across all

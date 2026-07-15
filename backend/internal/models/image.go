@@ -6,10 +6,10 @@ import "time"
 type Status string
 
 const (
-	StatusUpToDate         Status = "up_to_date"
-	StatusUpdateAvailable  Status = "update_available"
-	StatusUnknown          Status = "unknown"
-	StatusCheckFailed      Status = "check_failed"
+	StatusUpToDate        Status = "up_to_date"
+	StatusUpdateAvailable Status = "update_available"
+	StatusUnknown         Status = "unknown"
+	StatusCheckFailed     Status = "check_failed"
 )
 
 // ImageRecord is the canonical data model for a discovered container image.
@@ -58,13 +58,13 @@ type ImageRecord struct {
 
 // Summary is the payload for GET /api/v1/summary.
 type Summary struct {
-	TotalImages       int        `json:"totalImages"`
-	UpToDate          int        `json:"upToDate"`
-	UpdatesAvailable  int        `json:"updatesAvailable"`
-	Unknown           int        `json:"unknown"`
-	CheckFailed       int        `json:"checkFailed"`
-	UniqueRegistries  int        `json:"uniqueRegistries"`
-	LastScan          *time.Time `json:"lastScan"`
+	TotalImages      int        `json:"totalImages"`
+	UpToDate         int        `json:"upToDate"`
+	UpdatesAvailable int        `json:"updatesAvailable"`
+	Unknown          int        `json:"unknown"`
+	CheckFailed      int        `json:"checkFailed"`
+	UniqueRegistries int        `json:"uniqueRegistries"`
+	LastScan         *time.Time `json:"lastScan"`
 }
 
 // RegistryInfo is the payload for GET /api/v1/registries.
@@ -78,10 +78,10 @@ type RegistryInfo struct {
 
 // ScanStatus is returned by GET /api/v1/scan.
 type ScanStatus struct {
-	Running   bool       `json:"running"`
-	LastScan  *time.Time `json:"lastScan"`
-	ImageCount int       `json:"imageCount"`
-	Errors    []string   `json:"errors,omitempty"`
+	Running    bool       `json:"running"`
+	LastScan   *time.Time `json:"lastScan"`
+	ImageCount int        `json:"imageCount"`
+	Errors     []string   `json:"errors,omitempty"`
 }
 
 // Settings mirrors the configurable options.

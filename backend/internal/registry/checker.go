@@ -166,9 +166,7 @@ func (c *Checker) LatestTag(ctx context.Context, imageRef, currentTag, platform 
 		return LatestTagResult{Error: fmt.Errorf("listing tags for %q: %w", repo.String(), err)}
 	}
 
-	// Derive the arch string to filter on (e.g. "amd64" from "linux/amd64").
-	archHint := archFromPlatform(platform)
-	best := bestSemver(filterByArch(tags, currentTag, archHint))
+	best := selectLatestSemverTag(tags, currentTag, platform)
 	if best == "" || best == currentTag {
 		return LatestTagResult{} // nothing to report
 	}
@@ -181,6 +179,23 @@ func (c *Checker) LatestTag(ctx context.Context, imageRef, currentTag, platform 
 		return LatestTagResult{Tag: best}
 	}
 	return LatestTagResult{Tag: best, Digest: result.Digest}
+}
+
+func selectLatestSemverTag(tags []string, currentTag, platform string) string {
+	// Derive the arch string to filter on (e.g. "amd64" from "linux/amd64").
+	archHint := archFromPlatform(platform)
+	best := bestSemver(filterByArch(tags, currentTag, archHint))
+	if best == "" || best == currentTag {
+		return ""
+	}
+
+	current, currentOK := parseSemver(currentTag)
+	candidate, candidateOK := parseSemver(best)
+	if currentOK && candidateOK && !semverGreater(candidate, current) {
+		return ""
+	}
+
+	return best
 }
 
 // archFromPlatform extracts the architecture component from a platform string
@@ -301,6 +316,16 @@ func bestSemver(tags []string) string {
 		return a.patch > b.patch
 	})
 	return parsed[0].raw
+}
+
+func semverGreater(a, b semverTag) bool {
+	if a.major != b.major {
+		return a.major > b.major
+	}
+	if a.minor != b.minor {
+		return a.minor > b.minor
+	}
+	return a.patch > b.patch
 }
 
 func isIndex(mt types.MediaType) bool {

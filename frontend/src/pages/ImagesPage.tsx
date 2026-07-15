@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   DataTable,
   TableContainer,
@@ -51,6 +51,7 @@ export default function ImagesPage() {
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState<ImagesQuery>({})
+  const [search, setSearch] = useState('')
 
   const { scanStatus, refetchScan } = useScanStatus()
 
@@ -68,6 +69,7 @@ export default function ImagesPage() {
   }, [query])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { setPage(1) }, [search])
 
   // Reload table data once a running scan finishes
   const wasRunning = scanStatus?.running
@@ -82,7 +84,35 @@ export default function ImagesPage() {
     } catch { /* best-effort */ }
   }
 
-  const paged = records.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const filteredRecords = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) return records
+
+    return records.filter((r) => {
+      const haystack = [
+        r.configuredImage,
+        r.registry,
+        r.repository,
+        r.tag,
+        r.runningDigest,
+        r.registryDigest,
+        r.indexDigest,
+        r.namespace,
+        r.workloadKind,
+        r.workloadName,
+        r.containerName,
+        r.status,
+        ...(r.podNames ?? []),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return haystack.includes(term)
+    })
+  }, [records, search])
+
+  const paged = filteredRecords.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const rows = paged.map((r) => ({
     id: r.id,
@@ -214,9 +244,9 @@ export default function ImagesPage() {
                   <TableToolbarSearch
                     persistent
                     placeholder="Search images, namespaces, workloads…"
-                    value={query.search ?? ''}
+                    value={search}
                     onChange={(_event: unknown, value?: string) =>
-                      setQuery((q) => ({ ...q, search: value || undefined }))
+                      setSearch(value ?? '')
                     }
                   />
                 </TableToolbarContent>
@@ -270,9 +300,9 @@ export default function ImagesPage() {
         </DataTable>
       )}
 
-      {!loading && records.length > PAGE_SIZE && (
+      {!loading && filteredRecords.length > PAGE_SIZE && (
         <Pagination
-          totalItems={records.length}
+          totalItems={filteredRecords.length}
           pageSize={PAGE_SIZE}
           page={page}
           pageSizes={[25, 50, 100]}
@@ -281,9 +311,9 @@ export default function ImagesPage() {
         />
       )}
 
-      {!loading && records.length === 0 && (
+      {!loading && filteredRecords.length === 0 && (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--cds-text-secondary)' }}>
-          No images found. {query.search || query.namespace || query.status ? 'Try clearing filters.' : 'Run a scan to discover images.'}
+          No images found. {search || query.namespace || query.status ? 'Try clearing filters.' : 'Run a scan to discover images.'}
         </div>
       )}
     </div>
