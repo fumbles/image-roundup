@@ -1,9 +1,9 @@
 import type { ImageRecord } from '../types'
-import { Button } from '@carbon/react'
-import { Renew } from '@carbon/icons-react'
+import { Button, Link } from '@carbon/react'
+import { Launch, Renew } from '@carbon/icons-react'
 import StatusBadge from './StatusBadge'
 import CopyButton from './CopyButton'
-import { formatDigest, formatTime, relativeTime } from '../utils'
+import { formatDigest, formatTime, registryTagURL, relativeTime } from '../utils'
 
 interface ImageDetailProps {
   record: ImageRecord
@@ -20,6 +20,10 @@ export default function ImageDetail({
   onRefreshNamespace,
   onRefreshWorkload,
 }: ImageDetailProps) {
+  const latestTagURL = record.latestTag
+    ? registryTagURL(record.registry, record.repository, record.latestTag)
+    : null
+
   const plainLang = (): string => {
     const isMultiArch = !!record.indexDigest
     switch (record.status) {
@@ -115,6 +119,17 @@ export default function ImageDetail({
                 {record.latestTag}
               </code>
               <CopyButton text={record.latestTag} label="Copy tag" />
+              {latestTagURL && (
+                <Link
+                  href={latestTagURL}
+                  target="_blank"
+                  rel="noreferrer"
+                  renderIcon={Launch}
+                  size="sm"
+                >
+                  Inspect tag
+                </Link>
+              )}
               {record.latestTagDigest && (
                 <>
                   <code className="ir-digest" style={{ color: 'var(--cds-text-secondary)' }}>

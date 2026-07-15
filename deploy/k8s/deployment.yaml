@@ -45,6 +45,10 @@ spec:
             # Remove this env var (and the volume) if no private registries are needed.
             - name: DOCKER_CONFIG
               value: "/var/run/registry-auth"
+            # Hide images referenced through image-registry.openshift-image-registry.svc.
+            # Leave this false if you want Image Roundup to inspect internal registry images.
+            - name: EXCLUDE_INTERNAL_REGISTRY
+              value: "true"
             # Default scan interval is 8 h (28800 s).
             # Override here if you need a different cadence:
             # - name: SCAN_INTERVAL_SECONDS

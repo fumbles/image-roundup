@@ -30,3 +30,46 @@ export function relativeTime(iso: string | null | undefined): string {
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
 }
+
+export function registryTagURL(registry: string, repository: string, tag: string): string | null {
+  if (!registry || !repository || !tag) return null
+
+  const encodedTag = encodeURIComponent(tag)
+  const normalizedRegistry = registry.toLowerCase()
+
+  if (normalizedRegistry === 'docker.io' || normalizedRegistry === 'index.docker.io') {
+    if (repository.startsWith('library/')) {
+      return `https://hub.docker.com/_/${encodeURIComponent(repository.slice('library/'.length))}/tags?name=${encodedTag}`
+    }
+    return `https://hub.docker.com/r/${repository}/tags?name=${encodedTag}`
+  }
+
+  if (normalizedRegistry === 'quay.io') {
+    return `https://quay.io/repository/${repository}?tab=tags&tag=${encodedTag}`
+  }
+
+  if (normalizedRegistry === 'ghcr.io') {
+    const parts = repository.split('/')
+    if (parts.length >= 2) {
+      const owner = encodeURIComponent(parts[0])
+      const repo = encodeURIComponent(parts[1])
+      const pkg = encodeURIComponent(parts.slice(1).join('/'))
+      return `https://github.com/${owner}/${repo}/pkgs/container/${pkg}?tag=${encodedTag}`
+    }
+    return null
+  }
+
+  if (normalizedRegistry === 'lscr.io') {
+    const parts = repository.split('/')
+    if (parts[0] === 'linuxserver' && parts[1]) {
+      return `https://docs.linuxserver.io/images/docker-${encodeURIComponent(parts[1])}/`
+    }
+    return null
+  }
+
+  if (normalizedRegistry === 'registry.access.redhat.com' || normalizedRegistry === 'registry.redhat.io') {
+    return `https://catalog.redhat.com/search?searchType=containers&gs&q=${encodeURIComponent(repository)}`
+  }
+
+  return null
+}

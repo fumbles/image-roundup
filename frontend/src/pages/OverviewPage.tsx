@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Tile,
+  ClickableTile,
   SkeletonText,
   InlineNotification,
   Button,
@@ -18,6 +20,7 @@ export default function OverviewPage() {
   const [attention, setAttention] = useState<ImageRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   const { scanStatus, refetchScan } = useScanStatus()
 
@@ -86,11 +89,11 @@ export default function OverviewPage() {
 
       {/* Summary tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <SummaryTile label="Total images" value={summary?.totalImages} loading={loading} />
-        <SummaryTile label="Up to date" value={summary?.upToDate} loading={loading} accent="#24a148" />
-        <SummaryTile label="Updates available" value={summary?.updatesAvailable} loading={loading} accent="#0f62fe" />
-        <SummaryTile label="Unknown / failed" value={summary ? summary.unknown + summary.checkFailed : undefined} loading={loading} accent="#6f6f6f" />
-        <SummaryTile label="Registries" value={summary?.uniqueRegistries} loading={loading} />
+        <SummaryTile label="Total images" value={summary?.totalImages} loading={loading} to="/images" onNavigate={navigate} />
+        <SummaryTile label="Up to date" value={summary?.upToDate} loading={loading} accent="var(--ir-teal)" to="/images?status=up_to_date" onNavigate={navigate} />
+        <SummaryTile label="Updates available" value={summary?.updatesAvailable} loading={loading} accent="var(--ir-blue)" to="/images?status=update_available" onNavigate={navigate} />
+        <SummaryTile label="Unknown / failed" value={summary ? summary.unknown + summary.checkFailed : undefined} loading={loading} accent="var(--ir-amber)" to="/images?status=unknown_failed" onNavigate={navigate} />
+        <SummaryTile label="Registries" value={summary?.uniqueRegistries} loading={loading} accent="var(--ir-purple)" to="/registries" onNavigate={navigate} />
       </div>
 
       {/* Attention list */}
@@ -134,11 +137,13 @@ interface TileProps {
   value: number | undefined
   loading: boolean
   accent?: string
+  to?: string
+  onNavigate?: (to: string) => void
 }
 
-function SummaryTile({ label, value, loading, accent }: TileProps) {
-  return (
-    <Tile style={{ padding: '1.25rem 1rem' }}>
+function SummaryTile({ label, value, loading, accent, to, onNavigate }: TileProps) {
+  const content = (
+    <>
       {loading ? (
         <SkeletonText width="60%" />
       ) : (
@@ -147,6 +152,28 @@ function SummaryTile({ label, value, loading, accent }: TileProps) {
         </span>
       )}
       <p style={{ fontSize: 13, color: 'var(--cds-text-secondary)', margin: '4px 0 0' }}>{label}</p>
+    </>
+  )
+
+  if (to) {
+    return (
+      <ClickableTile
+        href={to}
+        disabled={loading}
+        onClick={(event) => {
+          event.preventDefault()
+          onNavigate?.(to)
+        }}
+        style={{ padding: '1.25rem 1rem' }}
+      >
+        {content}
+      </ClickableTile>
+    )
+  }
+
+  return (
+    <Tile style={{ padding: '1.25rem 1rem' }}>
+      {content}
     </Tile>
   )
 }

@@ -113,11 +113,12 @@ oc apply -f deploy/k8s/route.yaml
 | `LISTEN_ADDR` | `:8080` | HTTP listen address |
 | `IN_CLUSTER` | `true` | Use in-cluster Kubernetes config |
 | `KUBECONFIG` | `~/.kube/config` | Path to kubeconfig (out-of-cluster) |
-| `SCAN_INTERVAL_SECONDS` | `300` | How often to scan |
+| `SCAN_INTERVAL_SECONDS` | `28800` | How often to scan, in seconds |
 | `REGISTRY_TIMEOUT_SECONDS` | `15` | Registry request timeout |
 | `INCLUDED_NAMESPACES` | *(all)* | Comma-separated namespace allowlist |
-| `EXCLUDED_NAMESPACES` | `kube-system,kube-public,kube-node-lease` | Comma-separated namespace denylist |
+| `EXCLUDED_NAMESPACES` | `kube-system,kube-public,kube-node-lease,openshift*` | Comma-separated namespace denylist; supports trailing `*` |
 | `INCLUDE_COMPLETED_PODS` | `false` | Include succeeded/failed pods |
+| `EXCLUDE_INTERNAL_REGISTRY` | `false` | Skip images that use the OpenShift internal registry service name |
 | `THEME` | `system` | `system`, `light`, or `dark` |
 
 ## Status definitions

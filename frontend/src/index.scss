@@ -3,17 +3,54 @@
 
 :root {
   --ir-font: 'IBM Plex Sans', system-ui, sans-serif;
-  --ir-accent: #ee0000;
-  --ir-accent-hover: #cc0000;
+  --ir-red: #ee0000;
+  --ir-red-hover: #c9190b;
+  --ir-red-soft: #fff0f0;
+  --ir-blue: #0066cc;
+  --ir-blue-soft: #eaf4ff;
+  --ir-purple: #7b61ff;
+  --ir-purple-soft: #f2efff;
+  --ir-teal: #008a8a;
+  --ir-teal-soft: #e6f6f6;
+  --ir-amber: #f0ab00;
+  --ir-amber-soft: #fff7df;
+  --ir-gray-soft: #f4f4f4;
+  --ir-accent: var(--ir-red);
+  --ir-accent-hover: var(--ir-red-hover);
   --ir-app-bg: color-mix(in srgb, var(--cds-background), var(--cds-layer-01) 44%);
   --ir-panel-bg: color-mix(in srgb, var(--cds-layer-01), var(--cds-background) 18%);
   --ir-soft-border: color-mix(in srgb, var(--cds-border-subtle), transparent 18%);
+}
+
+[data-theme='g100'],
+.ir-app-shell.cds--g100 {
+  --ir-red: #ff6b7a;
+  --ir-red-hover: #ff9aa5;
+  --ir-red-soft: #2b0f16;
+  --ir-blue: #78a9ff;
+  --ir-blue-soft: #10233f;
+  --ir-purple: #be95ff;
+  --ir-purple-soft: #21153c;
+  --ir-teal: #3ddbd9;
+  --ir-teal-soft: #082b2b;
+  --ir-amber: #f1c21b;
+  --ir-amber-soft: #332700;
+  --ir-gray-soft: #262626;
 }
 
 html,
 body,
 #root {
   min-height: 100%;
+}
+
+html[data-theme='g100'] {
+  background: #161616;
+}
+
+html[data-theme='g100'] body {
+  background: #161616;
+  color: #f4f4f4;
 }
 
 body {
@@ -25,15 +62,19 @@ body {
 .ir-app-shell {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--ir-accent), transparent 88%), transparent 26rem),
-    linear-gradient(180deg, color-mix(in srgb, var(--cds-layer-01), transparent 68%), transparent 22rem),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--ir-red), transparent 84%), transparent 27rem),
+    radial-gradient(circle at 18% 0, color-mix(in srgb, var(--ir-purple), transparent 91%), transparent 25rem),
+    radial-gradient(circle at 72% 12rem, color-mix(in srgb, var(--ir-teal), transparent 93%), transparent 22rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--cds-layer-01), transparent 58%), transparent 24rem),
     var(--ir-app-bg);
   color: var(--cds-text-primary);
 }
 
 .ir-header {
   border-bottom: 1px solid var(--ir-soft-border);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--cds-background-inverse), transparent 94%);
+  box-shadow:
+    inset 0 -0.125rem 0 var(--ir-red),
+    0 1px 0 color-mix(in srgb, var(--cds-background-inverse), transparent 94%);
 }
 
 .ir-header-name {
@@ -46,14 +87,22 @@ body {
   height: 1.25rem;
   border-radius: 0.375rem;
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--ir-accent), white 18%), var(--ir-accent)),
-    var(--ir-accent);
+    linear-gradient(135deg, var(--ir-red), color-mix(in srgb, var(--ir-purple), var(--ir-red) 30%) 62%, var(--ir-blue)),
+    var(--ir-red);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ir-accent), white 38%);
   clip-path: polygon(50% 0, 91% 24%, 91% 76%, 50% 100%, 9% 76%, 9% 24%);
 }
 
+.ir-app-shell .cds--header__menu-item--current::after,
+.ir-app-shell .cds--header__menu-item[aria-current='page']::after {
+  background-color: var(--ir-red);
+}
+
 .ir-content {
   padding: 6rem 2rem 2rem;
+  min-height: 100vh;
+  background: transparent;
+  color: var(--cds-text-primary);
 }
 
 .ir-content > * {
@@ -69,12 +118,46 @@ body {
 }
 
 .ir-app-shell .cds--tile {
+  position: relative;
+  overflow: hidden;
   border-radius: 0.375rem;
+}
+
+.ir-app-shell .cds--tile::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 0.1875rem;
+  background: linear-gradient(90deg, var(--ir-red), var(--ir-purple), var(--ir-blue), var(--ir-teal));
+}
+
+.ir-app-shell .cds--tile:hover {
+  border-color: color-mix(in srgb, var(--ir-red), var(--ir-soft-border) 58%);
 }
 
 .ir-app-shell .cds--data-table-container {
   overflow: hidden;
   border-radius: 0.375rem;
+}
+
+.ir-app-shell .cds--data-table thead th {
+  border-top: 0.1875rem solid var(--ir-red);
+}
+
+.ir-app-shell .cds--data-table tbody tr:hover td,
+.ir-app-shell .cds--data-table tbody tr:hover th {
+  background: color-mix(in srgb, var(--ir-red-soft), transparent 34%);
+}
+
+.ir-app-shell .cds--link,
+.ir-app-shell a {
+  color: var(--ir-blue);
+}
+
+.ir-app-shell .cds--link:hover,
+.ir-app-shell a:hover {
+  color: var(--ir-red);
 }
 
 .ir-app-shell .cds--btn--primary {
@@ -98,6 +181,36 @@ body {
   height: 8px;
   border-radius: 50%;
   margin-right: 6px;
+}
+
+.ir-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 1rem;
+  padding: 0.125rem 0.5rem 0.125rem 0.375rem;
+  background: var(--ir-status-bg, transparent);
+  color: var(--ir-status-fg, var(--cds-text-primary));
+}
+
+.ir-status-up_to_date {
+  --ir-status-fg: var(--ir-teal);
+  --ir-status-bg: var(--ir-teal-soft);
+}
+
+.ir-status-update_available {
+  --ir-status-fg: var(--ir-blue);
+  --ir-status-bg: var(--ir-blue-soft);
+}
+
+.ir-status-unknown {
+  --ir-status-fg: var(--cds-text-secondary);
+  --ir-status-bg: var(--ir-gray-soft);
+}
+
+.ir-status-check_failed {
+  --ir-status-fg: var(--ir-red);
+  --ir-status-bg: var(--ir-red-soft);
 }
 
 .ir-settings {

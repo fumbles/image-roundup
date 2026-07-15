@@ -121,6 +121,34 @@ func TestSelectLatestSemverTag(t *testing.T) {
 			repository: "index.docker.io/library/nginx",
 			want:       "1.32.0",
 		},
+		{
+			name: "linuxserver latest stream ignores develop and nightly tags",
+			tags: []string{
+				"latest",
+				"develop",
+				"nightly",
+				"2.5.1-develop",
+				"2.5.1-nightly",
+			},
+			currentTag: "latest",
+			platform:   "linux/amd64",
+			repository: "lscr.io/linuxserver/prowlarr",
+			want:       "",
+		},
+		{
+			name: "linuxserver develop stream can suggest newer develop tag",
+			tags: []string{
+				"latest",
+				"develop",
+				"2.5.0-develop",
+				"2.5.1-develop",
+				"2.5.2-nightly",
+			},
+			currentTag: "develop",
+			platform:   "linux/amd64",
+			repository: "lscr.io/linuxserver/prowlarr",
+			want:       "2.5.1-develop",
+		},
 	}
 
 	for _, tt := range tests {

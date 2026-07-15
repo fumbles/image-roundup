@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   DataTable,
   TableContainer,
@@ -32,6 +33,14 @@ import { useScanStatus } from '../hooks/useScanStatus'
 import { formatDigest } from '../utils'
 
 const PAGE_SIZE = 25
+type StatusFilter = Status | 'unknown_failed'
+const statusFilters = new Set<StatusFilter>([
+  'update_available',
+  'check_failed',
+  'unknown',
+  'unknown_failed',
+  'up_to_date',
+])
 
 const headers = [
   { key: 'status', header: 'Status' },
@@ -50,15 +59,46 @@ export default function ImagesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [query, setQuery] = useState<ImagesQuery>({})
   const [search, setSearch] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const { scanStatus, refetchScan } = useScanStatus()
+
+  const query = useMemo(() => {
+    const status = searchParams.get('status')
+    return {
+      namespace: searchParams.get('namespace') || undefined,
+      registry: searchParams.get('registry') || undefined,
+      kind: searchParams.get('kind') || undefined,
+      status: status && statusFilters.has(status as StatusFilter)
+        ? status as StatusFilter
+        : undefined,
+    }
+  }, [searchParams])
+
+  const apiQuery = useMemo<ImagesQuery>(() => ({
+    namespace: query.namespace,
+    registry: query.registry,
+    kind: query.kind,
+    status: query.status === 'unknown_failed' ? undefined : query.status,
+  }), [query])
+
+  const setFilter = (key: keyof typeof query, value?: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (value) {
+        next.set(key, value)
+      } else {
+        next.delete(key)
+      }
+      return next
+    })
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await getImages(query)
+      const data = await getImages(apiQuery)
       setRecords(data)
       setPage(1)
     } catch (e: unknown) {
@@ -66,7 +106,7 @@ export default function ImagesPage() {
     } finally {
       setLoading(false)
     }
-  }, [query])
+  }, [apiQuery])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [search])
@@ -110,9 +150,12 @@ export default function ImagesPage() {
 
   const filteredRecords = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return records
+    const statusFiltered = query.status === 'unknown_failed'
+      ? records.filter((r) => r.status === 'unknown' || r.status === 'check_failed')
+      : records
+    if (!term) return statusFiltered
 
-    return records.filter((r) => {
+    return statusFiltered.filter((r) => {
       const haystack = [
         r.configuredImage,
         r.registry,
@@ -134,7 +177,7 @@ export default function ImagesPage() {
 
       return haystack.includes(term)
     })
-  }, [records, search])
+  }, [records, search, query.status])
 
   const paged = filteredRecords.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -158,9 +201,10 @@ export default function ImagesPage() {
   const registries = Array.from(new Set(records.map((r) => r.registry))).sort()
   const kinds = Array.from(new Set(records.map((r) => r.workloadKind))).sort()
 
-  const statusOptions: { value: Status | ''; label: string }[] = [
+  const statusOptions: { value: StatusFilter | ''; label: string }[] = [
     { value: '', label: 'All statuses' },
     { value: 'update_available', label: 'Update available' },
+    { value: 'unknown_failed', label: 'Unknown / failed' },
     { value: 'check_failed', label: 'Check failed' },
     { value: 'unknown', label: 'Unknown' },
     { value: 'up_to_date', label: 'Up to date' },
@@ -193,7 +237,7 @@ export default function ImagesPage() {
           labelText="Namespace"
           size="sm"
           value={query.namespace ?? ''}
-          onChange={(e) => setQuery((q) => ({ ...q, namespace: e.target.value || undefined }))}
+          onChange={(e) => setFilter('namespace', e.target.value || undefined)}
           style={{ minWidth: 180 }}
         >
           <SelectItem value="" text="All namespaces" />
@@ -205,7 +249,7 @@ export default function ImagesPage() {
           labelText="Registry"
           size="sm"
           value={query.registry ?? ''}
-          onChange={(e) => setQuery((q) => ({ ...q, registry: e.target.value || undefined }))}
+          onChange={(e) => setFilter('registry', e.target.value || undefined)}
           style={{ minWidth: 180 }}
         >
           <SelectItem value="" text="All registries" />
@@ -217,7 +261,7 @@ export default function ImagesPage() {
           labelText="Workload kind"
           size="sm"
           value={query.kind ?? ''}
-          onChange={(e) => setQuery((q) => ({ ...q, kind: e.target.value || undefined }))}
+          onChange={(e) => setFilter('kind', e.target.value || undefined)}
           style={{ minWidth: 180 }}
         >
           <SelectItem value="" text="All kinds" />
@@ -229,7 +273,7 @@ export default function ImagesPage() {
           labelText="Status"
           size="sm"
           value={query.status ?? ''}
-          onChange={(e) => setQuery((q) => ({ ...q, status: (e.target.value as Status) || undefined }))}
+          onChange={(e) => setFilter('status', e.target.value || undefined)}
           style={{ minWidth: 180 }}
         >
           {statusOptions.map((o) => <SelectItem key={o.value} value={o.value} text={o.label} />)}

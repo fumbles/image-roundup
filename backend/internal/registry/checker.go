@@ -267,6 +267,7 @@ func selectLatestSemverTag(tags []string, currentTag, platform, repository strin
 	// Derive the arch string to filter on (e.g. "amd64" from "linux/amd64").
 	archHint := archFromPlatform(platform)
 	compatible := filterByTagCompatibility(filterByArch(tags, currentTag, archHint), currentTag, platform)
+	compatible = filterByStreamCompatibility(compatible, currentTag, repository)
 	compatible = filterByMajorCompatibility(compatible, currentTag, repository)
 	best := bestSemver(compatible)
 	if best == "" || best == currentTag {
@@ -280,6 +281,46 @@ func selectLatestSemverTag(tags []string, currentTag, platform, repository strin
 	}
 
 	return best
+}
+
+func filterByStreamCompatibility(tags []string, currentTag, repository string) []string {
+	if !linuxServerRepository(repository) {
+		return tags
+	}
+
+	stream := linuxServerStream(currentTag)
+	if stream == "" {
+		return tags
+	}
+
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if linuxServerStream(tag) == stream {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
+func linuxServerRepository(repository string) bool {
+	normalized := strings.TrimPrefix(repository, "index.docker.io/")
+	normalized = strings.TrimPrefix(normalized, "docker.io/")
+	normalized = strings.TrimPrefix(normalized, "lscr.io/")
+	return strings.HasPrefix(normalized, "linuxserver/")
+}
+
+func linuxServerStream(tag string) string {
+	lower := strings.ToLower(tag)
+	switch {
+	case lower == "latest" || strings.HasSuffix(lower, "-latest"):
+		return "latest"
+	case lower == "develop" || strings.Contains(lower, "develop"):
+		return "develop"
+	case lower == "nightly" || strings.Contains(lower, "nightly"):
+		return "nightly"
+	default:
+		return ""
+	}
 }
 
 func filterByMajorCompatibility(tags []string, currentTag, repository string) []string {
