@@ -46,7 +46,7 @@ func TestGetUpdatesSummary(t *testing.T) {
 		},
 	})
 
-	handler := NewHandler(store, nil, zap.NewNop(), &models.Settings{}, k8s.DiscoveryOptions{}, nil)
+	handler := NewHandler(store, nil, nil, zap.NewNop(), &models.Settings{}, k8s.DiscoveryOptions{}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/summary/updates", nil)
 	rec := httptest.NewRecorder()
 

@@ -26,6 +26,7 @@ The app does not update workloads. It is intentionally observational.
 backend/cmd/server        Go server entry point
 backend/internal/api      HTTP API, static SPA serving, health probes
 backend/internal/cache    In-memory store and optional NDJSON persistence
+backend/internal/chartrepo Helm chart repository index lookups
 backend/internal/config   Environment variable loading
 backend/internal/k8s      Kubernetes discovery, scan orchestration, OpenShift route support
 backend/internal/models   Shared backend API/data models
@@ -95,10 +96,12 @@ the REST API.
 7. The store is replaced after full scans, or selectively replaced after scoped
    namespace/workload scans.
 
-Helm detection does not currently resolve latest chart versions. That would
-require a trusted chart repository mapping or reading Helm release metadata and
-querying configured chart repositories, similar to `helm repo update` plus
-`helm search repo`.
+Helm release tracking reads Helm v3 release Secrets, decodes chart metadata,
+and optionally queries configured chart repositories. This is equivalent to a
+read-only `helm list -A` plus `helm repo update`/`helm search repo` workflow,
+without shelling out to the Helm CLI. Latest chart checks require
+`HELM_REPOSITORIES` or Settings page repo mappings because Helm release Secrets
+do not reliably preserve the original repo alias.
 
 ## Backend Components
 
@@ -113,6 +116,7 @@ querying configured chart repositories, similar to `helm repo update` plus
 - `GET /api/v1/images`
 - `GET /api/v1/images/{id}`
 - `GET /api/v1/registries`
+- `GET /api/v1/helm/releases`
 - `GET /api/v1/scan`
 - `POST /api/v1/scan`
 - `GET /api/v1/settings`
@@ -271,6 +275,7 @@ Environment variables:
 | `EXCLUDED_NAMESPACES` | defaults above | Comma-separated denylist; supports trailing `*` |
 | `INCLUDE_COMPLETED_PODS` | `false` | Include succeeded/failed pods |
 | `EXCLUDE_INTERNAL_REGISTRY` | `false` | Skip OpenShift internal registry images |
+| `HELM_REPOSITORIES` | empty | Comma-separated `name=https://repo.example` chart repos for Helm update checks |
 | `THEME` | `system` | `system`, `light`, `dark` |
 
 The Kubernetes deployment currently sets `DATA_DIR=/data`,

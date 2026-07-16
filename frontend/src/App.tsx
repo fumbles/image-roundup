@@ -15,6 +15,7 @@ import { getSettings, putSettings } from './api'
 import OverviewPage from './pages/OverviewPage'
 import ImagesPage from './pages/ImagesPage'
 import RegistriesPage from './pages/RegistriesPage'
+import HelmPage from './pages/HelmPage'
 import SettingsPage from './pages/SettingsPage'
 import { SETTINGS_SAVED_EVENT } from './theme'
 import type { Settings } from './types'
@@ -134,6 +135,7 @@ function AppShell() {
           <NavItem to="/overview">Overview</NavItem>
           <NavItem to="/images">Images</NavItem>
           <NavItem to="/registries">Registries</NavItem>
+          <NavItem to="/helm">Helm</NavItem>
           <NavItem to="/settings">Settings</NavItem>
         </HeaderNavigation>
         <HeaderGlobalBar>
@@ -160,6 +162,7 @@ function AppShell() {
           <Route path="/overview" element={<OverviewPage />} />
           <Route path="/images" element={<ImagesPage />} />
           <Route path="/registries" element={<RegistriesPage />} />
+          <Route path="/helm" element={<HelmPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Content>

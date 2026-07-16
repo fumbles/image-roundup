@@ -149,6 +149,7 @@ If another scan is already active, the API returns `409 Conflict`:
 | `GET` | `/api/v1/images` | Image records; supports filters |
 | `GET` | `/api/v1/images/{id}` | Single image record |
 | `GET` | `/api/v1/registries` | Registry summary |
+| `GET` | `/api/v1/helm/releases` | Helm release inventory and chart update hints |
 | `GET` | `/api/v1/scan` | Scan status |
 | `POST` | `/api/v1/scan` | Start a full, namespace, or workload scan |
 | `GET` | `/api/v1/settings` | Current runtime settings |
@@ -177,6 +178,39 @@ Status values:
 | `update_available` | Running digest differs from the registry digest for the configured tag, or a newer compatible version tag is available |
 | `unknown` | Image could not be compared, usually because it lacks tag/digest data |
 | `check_failed` | Registry lookup failed |
+
+## Helm Releases
+
+`GET /api/v1/helm/releases` lists installed Helm releases from Helm v3 release
+Secrets. With `HELM_REPOSITORIES` or Settings page repo mappings configured, it
+also reports the latest chart version found in those repository indexes.
+
+```bash
+curl -s http://localhost:8080/api/v1/helm/releases
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": "kyverno/kyverno",
+    "name": "kyverno",
+    "namespace": "kyverno",
+    "revision": 9,
+    "status": "deployed",
+    "chartName": "kyverno",
+    "chartVersion": "3.8.2",
+    "appVersion": "v1.18.2",
+    "repositoryName": "kyverno",
+    "repositoryUrl": "https://kyverno.github.io/kyverno/",
+    "latestChartVersion": "3.8.3",
+    "latestAppVersion": "v1.18.3",
+    "updateAvailable": true,
+    "managedImages": 4
+  }
+]
+```
 
 ## Response Shapes
 

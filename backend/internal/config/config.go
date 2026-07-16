@@ -59,6 +59,9 @@ func Load() Config {
 	if envBool("EXCLUDE_INTERNAL_REGISTRY", false) {
 		cfg.Settings.ExcludeInternalRegistry = true
 	}
+	if v := os.Getenv("HELM_REPOSITORIES"); v != "" {
+		cfg.Settings.HelmRepositories = splitHelmRepositories(v)
+	}
 	return cfg
 }
 
@@ -100,6 +103,24 @@ func splitCSV(s string) []string {
 		if t := strings.TrimSpace(p); t != "" {
 			out = append(out, t)
 		}
+	}
+	return out
+}
+
+func splitHelmRepositories(s string) []models.HelmRepository {
+	parts := strings.Split(s, ",")
+	out := make([]models.HelmRepository, 0, len(parts))
+	for _, part := range parts {
+		name, url, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
+			continue
+		}
+		name = strings.TrimSpace(name)
+		url = strings.TrimSpace(url)
+		if name == "" || url == "" {
+			continue
+		}
+		out = append(out, models.HelmRepository{Name: name, URL: url})
 	}
 	return out
 }

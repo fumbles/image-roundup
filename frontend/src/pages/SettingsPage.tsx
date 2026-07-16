@@ -48,6 +48,15 @@ export default function SettingsPage() {
   if (!settings) return <div style={{ padding: '1.5rem' }}>Loading…</div>
 
   const parseLines = (value: string) => value.split('\n').map((v) => v.trim()).filter(Boolean)
+  const formatHelmRepositories = () => (settings.helmRepositories ?? [])
+    .map((repo) => `${repo.name}=${repo.url}`)
+    .join('\n')
+  const parseHelmRepositories = (value: string) => parseLines(value)
+    .map((line) => {
+      const [name, ...urlParts] = line.split('=')
+      return { name: name?.trim() ?? '', url: urlParts.join('=').trim() }
+    })
+    .filter((repo) => repo.name && repo.url)
 
   return (
     <div className="ir-settings">
@@ -128,6 +137,20 @@ export default function SettingsPage() {
               }
             />
           </div>
+        </section>
+
+        <section className="ir-settings-section">
+          <h2>Helm</h2>
+          <TextArea
+            id="helm-repositories"
+            labelText="Chart repositories (name=url, one per line)"
+            helperText="Used to compare installed Helm chart versions against repository index.yaml files."
+            value={formatHelmRepositories()}
+            rows={4}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setSettings((s) => s ? { ...s, helmRepositories: parseHelmRepositories(e.target.value) } : s)
+            }
+          />
         </section>
 
         <section className="ir-settings-section">

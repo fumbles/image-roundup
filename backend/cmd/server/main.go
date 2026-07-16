@@ -65,7 +65,7 @@ func main() {
 	}
 
 	settings := cfg.Settings
-	handler := api.NewHandler(store, scanner, log, &settings, scanOpts, afterScan)
+	handler := api.NewHandler(store, kubeClient, scanner, log, &settings, scanOpts, afterScan)
 
 	interval := time.Duration(cfg.Settings.ScanIntervalSeconds) * time.Second
 

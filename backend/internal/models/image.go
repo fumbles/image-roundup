@@ -132,14 +132,43 @@ type ScanRequest struct {
 
 // Settings mirrors the configurable options.
 type Settings struct {
-	ScanIntervalSeconds     int      `json:"scanIntervalSeconds"`
-	IncludedNamespaces      []string `json:"includedNamespaces"`
-	ExcludedNamespaces      []string `json:"excludedNamespaces"`
-	IncludeCompletedPods    bool     `json:"includeCompletedPods"`
-	ExcludeInternalRegistry bool     `json:"excludeInternalRegistry"`
-	RegistryTimeoutSeconds  int      `json:"registryTimeoutSeconds"`
-	Theme                   string   `json:"theme"` // system | light | dark
-	ShortDigests            bool     `json:"shortDigests"`
+	ScanIntervalSeconds     int              `json:"scanIntervalSeconds"`
+	IncludedNamespaces      []string         `json:"includedNamespaces"`
+	ExcludedNamespaces      []string         `json:"excludedNamespaces"`
+	IncludeCompletedPods    bool             `json:"includeCompletedPods"`
+	ExcludeInternalRegistry bool             `json:"excludeInternalRegistry"`
+	RegistryTimeoutSeconds  int              `json:"registryTimeoutSeconds"`
+	HelmRepositories        []HelmRepository `json:"helmRepositories"`
+	Theme                   string           `json:"theme"` // system | light | dark
+	ShortDigests            bool             `json:"shortDigests"`
+}
+
+// HelmRepository configures a chart repository index used to check Helm
+// release updates.
+type HelmRepository struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+// HelmRelease describes an installed Helm release and optional chart update
+// information from configured repository indexes.
+type HelmRelease struct {
+	ID                 string     `json:"id"`
+	Name               string     `json:"name"`
+	Namespace          string     `json:"namespace"`
+	Revision           int        `json:"revision"`
+	Status             string     `json:"status"`
+	ChartName          string     `json:"chartName"`
+	ChartVersion       string     `json:"chartVersion"`
+	AppVersion         string     `json:"appVersion,omitempty"`
+	Updated            *time.Time `json:"updated,omitempty"`
+	RepositoryName     string     `json:"repositoryName,omitempty"`
+	RepositoryURL      string     `json:"repositoryUrl,omitempty"`
+	LatestChartVersion string     `json:"latestChartVersion,omitempty"`
+	LatestAppVersion   string     `json:"latestAppVersion,omitempty"`
+	UpdateAvailable    bool       `json:"updateAvailable"`
+	ManagedImages      int        `json:"managedImages"`
+	Error              string     `json:"error,omitempty"`
 }
 
 // DefaultSettings returns safe defaults.

@@ -160,6 +160,7 @@ OpenAPI document is available at `/api/v1/openapi.json`.
 | GET | `/api/v1/images` | All image records; supports `?search=&namespace=&registry=&kind=&status=` |
 | GET | `/api/v1/images/{id}` | Single image record |
 | GET | `/api/v1/registries` | Registry summary |
+| GET | `/api/v1/helm/releases` | Helm release inventory and chart update hints |
 | GET | `/api/v1/scan` | Scan status |
 | POST | `/api/v1/scan` | Trigger full, namespace, or workload scan |
 | GET | `/api/v1/settings` | Current settings |
@@ -198,6 +199,7 @@ Scoped scan examples:
 | `EXCLUDED_NAMESPACES` | `kube-system,kube-public,kube-node-lease,openshift*` | Comma-separated namespace denylist; supports trailing `*` |
 | `INCLUDE_COMPLETED_PODS` | `false` | Include succeeded/failed pods |
 | `EXCLUDE_INTERNAL_REGISTRY` | `false` | Skip images that use the OpenShift internal registry service name |
+| `HELM_REPOSITORIES` | *(empty)* | Comma-separated Helm chart repos as `name=https://repo.example`; used by the Helm tab for latest chart checks |
 | `THEME` | `system` | `system`, `light`, or `dark` |
 
 The included Kubernetes deployment sets `DATA_DIR=/data`,

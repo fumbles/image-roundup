@@ -26,6 +26,7 @@ const openAPISpecJSON = `{
   ],
   "tags": [
     { "name": "inventory", "description": "Image inventory and status summaries" },
+    { "name": "helm", "description": "Helm release inventory and chart update hints" },
     { "name": "scan", "description": "Scan status and manual scan triggers" },
     { "name": "settings", "description": "Runtime settings" },
     { "name": "system", "description": "Health and metrics endpoints" }
@@ -131,6 +132,26 @@ const openAPISpecJSON = `{
                 "schema": {
                   "type": "array",
                   "items": { "$ref": "#/components/schemas/RegistryInfo" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/helm/releases": {
+      "get": {
+        "tags": ["helm"],
+        "summary": "List Helm releases",
+        "description": "Returns installed Helm releases discovered from Helm release Secrets. When chart repositories are configured, the response includes latest chart version hints.",
+        "responses": {
+          "200": {
+            "description": "Helm releases",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/HelmRelease" }
                 }
               }
             }
@@ -340,6 +361,27 @@ const openAPISpecJSON = `{
           "lastError": { "type": "string" }
         }
       },
+      "HelmRelease": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "namespace": { "type": "string" },
+          "revision": { "type": "integer" },
+          "status": { "type": "string" },
+          "chartName": { "type": "string" },
+          "chartVersion": { "type": "string" },
+          "appVersion": { "type": "string" },
+          "updated": { "type": ["string", "null"], "format": "date-time" },
+          "repositoryName": { "type": "string" },
+          "repositoryUrl": { "type": "string" },
+          "latestChartVersion": { "type": "string" },
+          "latestAppVersion": { "type": "string" },
+          "updateAvailable": { "type": "boolean" },
+          "managedImages": { "type": "integer" },
+          "error": { "type": "string" }
+        }
+      },
       "ScanStatus": {
         "type": "object",
         "properties": {
@@ -366,8 +408,19 @@ const openAPISpecJSON = `{
           "includeCompletedPods": { "type": "boolean" },
           "excludeInternalRegistry": { "type": "boolean" },
           "registryTimeoutSeconds": { "type": "integer" },
+          "helmRepositories": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/HelmRepository" }
+          },
           "theme": { "type": "string", "enum": ["system", "light", "dark"] },
           "shortDigests": { "type": "boolean" }
+        }
+      },
+      "HelmRepository": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "url": { "type": "string" }
         }
       },
       "Message": {

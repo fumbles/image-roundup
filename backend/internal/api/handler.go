@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/yamlwrangler/image-roundup/backend/internal/cache"
+	"github.com/yamlwrangler/image-roundup/backend/internal/chartrepo"
 	"github.com/yamlwrangler/image-roundup/backend/internal/k8s"
 	"github.com/yamlwrangler/image-roundup/backend/internal/models"
 )
@@ -24,6 +25,7 @@ import (
 // Handler bundles the dependencies needed by API handlers.
 type Handler struct {
 	store     *cache.Store
+	kube      *k8s.Client
 	scanner   *k8s.Scanner
 	log       *zap.Logger
 	settings  *models.Settings
@@ -45,6 +47,7 @@ func envStaticDir() string {
 // NewHandler creates a Handler.
 func NewHandler(
 	store *cache.Store,
+	kube *k8s.Client,
 	scanner *k8s.Scanner,
 	log *zap.Logger,
 	settings *models.Settings,
@@ -53,6 +56,7 @@ func NewHandler(
 ) *Handler {
 	return &Handler{
 		store:     store,
+		kube:      kube,
 		scanner:   scanner,
 		log:       log,
 		settings:  settings,
@@ -103,6 +107,7 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/images", h.getImages)
 		r.Get("/images/{id}", h.getImage)
 		r.Get("/registries", h.getRegistries)
+		r.Get("/helm/releases", h.getHelmReleases)
 		r.Get("/scan", h.getScan)
 		r.Post("/scan", h.postScan)
 		r.Get("/settings", h.getSettings)
@@ -266,6 +271,46 @@ func (h *Handler) getRegistries(w http.ResponseWriter, r *http.Request) {
 		result = []models.RegistryInfo{}
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) getHelmReleases(w http.ResponseWriter, r *http.Request) {
+	if h.kube == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "kubernetes client unavailable"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	releases, err := h.kube.DiscoverHelmReleases(ctx, h.scanOpts)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	counts := helmManagedImageCounts(h.store.ListRecords())
+	for i := range releases {
+		releases[i].ManagedImages = counts[releases[i].Namespace+"/"+releases[i].Name]
+	}
+
+	timeout := time.Duration(h.settings.RegistryTimeoutSeconds) * time.Second
+	releases = chartrepo.EnrichHelmReleases(ctx, releases, h.settings.HelmRepositories, timeout)
+	writeJSON(w, http.StatusOK, releases)
+}
+
+func helmManagedImageCounts(records []*models.ImageRecord) map[string]int {
+	counts := make(map[string]int)
+	for _, rec := range records {
+		if rec.Management == nil || rec.Management.HelmReleaseName == "" {
+			continue
+		}
+		namespace := rec.Management.HelmReleaseNamespace
+		if namespace == "" {
+			namespace = rec.Namespace
+		}
+		counts[namespace+"/"+rec.Management.HelmReleaseName]++
+	}
+	return counts
 }
 
 func (h *Handler) getScan(w http.ResponseWriter, r *http.Request) {

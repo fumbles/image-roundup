@@ -70,8 +70,33 @@ export interface Settings {
   includeCompletedPods: boolean
   excludeInternalRegistry: boolean
   registryTimeoutSeconds: number
+  helmRepositories: HelmRepository[]
   theme: 'system' | 'light' | 'dark'
   shortDigests: boolean
+}
+
+export interface HelmRepository {
+  name: string
+  url: string
+}
+
+export interface HelmRelease {
+  id: string
+  name: string
+  namespace: string
+  revision: number
+  status: string
+  chartName: string
+  chartVersion: string
+  appVersion?: string
+  updated?: string | null
+  repositoryName?: string
+  repositoryUrl?: string
+  latestChartVersion?: string
+  latestAppVersion?: string
+  updateAvailable: boolean
+  managedImages: number
+  error?: string
 }
 
 export interface ImagesQuery {

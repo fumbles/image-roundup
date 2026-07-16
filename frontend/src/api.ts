@@ -1,6 +1,6 @@
 // Central API client — all requests go through here.
 import axios from 'axios'
-import type { ImageRecord, Summary, ScanStatus, RegistryInfo, Settings, ImagesQuery, ScanRequest } from './types'
+import type { ImageRecord, Summary, ScanStatus, RegistryInfo, Settings, ImagesQuery, ScanRequest, HelmRelease } from './types'
 
 const client = axios.create({ baseURL: '/api/v1' })
 
@@ -21,6 +21,11 @@ export async function getImage(id: string): Promise<ImageRecord> {
 
 export async function getRegistries(): Promise<RegistryInfo[]> {
   const { data } = await client.get<RegistryInfo[]>('/registries')
+  return data
+}
+
+export async function getHelmReleases(): Promise<HelmRelease[]> {
+  const { data } = await client.get<HelmRelease[]>('/helm/releases')
   return data
 }
 
