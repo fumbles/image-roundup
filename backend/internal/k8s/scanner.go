@@ -180,6 +180,8 @@ func (s *Scanner) checkRecordGroup(ctx context.Context, lookup registryLookup, j
 		rec.Error = ""
 		rec.RegistryDigest = result.Digest
 		rec.IndexDigest = result.IndexDigest
+		rec.LatestTag = ""
+		rec.LatestTagDigest = ""
 		if result.Platform != "" {
 			rec.Platform = result.Platform
 		}
@@ -192,13 +194,15 @@ func (s *Scanner) checkRecordGroup(ctx context.Context, lookup registryLookup, j
 		default:
 			rec.Status = models.StatusUpdateAvailable
 		}
-		if rec.Status == models.StatusUpdateAvailable && rec.Tag != "" {
+		if rec.Tag != "" && (rec.Status == models.StatusUpdateAvailable || (rec.Status == models.StatusUpToDate && registry.IsVersionTag(rec.Tag))) {
 			needsLatest = true
 		}
 	}
 
-	// Only look up the latest semver tag when an update is already flagged.
-	// This avoids an extra API call per image on every scan.
+	// Look up the latest compatible semver tag when an update is already
+	// flagged, or when the workload is pinned to an immutable version tag. The
+	// version-tag case catches releases like 1.0.1 -> 1.0.2 even though the
+	// configured 1.0.1 tag itself has not changed.
 	if needsLatest {
 		first := job.records[0]
 		latestCtx, latestCancel := context.WithTimeout(ctx, 20*time.Second)
@@ -212,9 +216,13 @@ func (s *Scanner) checkRecordGroup(ctx context.Context, lookup registryLookup, j
 				zap.Error(lt.Error))
 		} else {
 			for _, rec := range job.records {
-				if rec.Status == models.StatusUpdateAvailable {
-					rec.LatestTag = lt.Tag
-					rec.LatestTagDigest = lt.Digest
+				if lt.Tag == "" {
+					continue
+				}
+				rec.LatestTag = lt.Tag
+				rec.LatestTagDigest = lt.Digest
+				if rec.Status == models.StatusUpToDate && registry.IsVersionTag(rec.Tag) {
+					rec.Status = models.StatusUpdateAvailable
 				}
 			}
 		}

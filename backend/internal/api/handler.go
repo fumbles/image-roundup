@@ -99,6 +99,7 @@ func (h *Handler) Router() http.Handler {
 		r.Get("/docs", h.getDocs)
 		r.Get("/openapi.json", h.getOpenAPI)
 		r.Get("/summary", h.getSummary)
+		r.Get("/summary/updates", h.getUpdatesSummary)
 		r.Get("/images", h.getImages)
 		r.Get("/images/{id}", h.getImage)
 		r.Get("/registries", h.getRegistries)
@@ -137,6 +138,24 @@ func (h *Handler) getSummary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s)
 }
 
+func (h *Handler) getUpdatesSummary(w http.ResponseWriter, r *http.Request) {
+	records := h.store.ListRecords()
+	result := models.UpdatesSummary{
+		LastScan: h.store.LastScan(),
+		Updates:  []models.UpdateSummary{},
+	}
+
+	for _, rec := range records {
+		if rec.Status != models.StatusUpdateAvailable {
+			continue
+		}
+		result.Updates = append(result.Updates, updateSummaryFromRecord(rec))
+	}
+
+	result.Count = len(result.Updates)
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (h *Handler) getImages(w http.ResponseWriter, r *http.Request) {
 	records := h.store.ListRecords()
 	q := r.URL.Query()
@@ -173,6 +192,38 @@ func (h *Handler) getImages(w http.ResponseWriter, r *http.Request) {
 		filtered = []*models.ImageRecord{}
 	}
 	writeJSON(w, http.StatusOK, filtered)
+}
+
+func updateSummaryFromRecord(rec *models.ImageRecord) models.UpdateSummary {
+	reason := "digest_changed"
+	if rec.LatestTag != "" {
+		reason = "newer_version_tag"
+	}
+
+	latestVersion := rec.LatestTag
+	if latestVersion == "" && rec.RegistryDigest != "" && rec.RunningDigest != rec.RegistryDigest {
+		latestVersion = "digest changed"
+	}
+
+	return models.UpdateSummary{
+		ID:              rec.ID,
+		Image:           rec.ConfiguredImage,
+		CurrentVersion:  rec.Tag,
+		LatestVersion:   latestVersion,
+		Namespace:       rec.Namespace,
+		Workload:        rec.WorkloadKind + "/" + rec.WorkloadName,
+		WorkloadKind:    rec.WorkloadKind,
+		WorkloadName:    rec.WorkloadName,
+		ContainerName:   rec.ContainerName,
+		Management:      rec.Management,
+		Registry:        rec.Registry,
+		Repository:      rec.Repository,
+		UpdateReason:    reason,
+		LastChecked:     rec.LastChecked,
+		RunningDigest:   rec.RunningDigest,
+		RegistryDigest:  rec.RegistryDigest,
+		LatestTagDigest: rec.LatestTagDigest,
+	}
 }
 
 func (h *Handler) getImage(w http.ResponseWriter, r *http.Request) {

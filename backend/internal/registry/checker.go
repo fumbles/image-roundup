@@ -141,6 +141,13 @@ type LatestTagResult struct {
 	Error  error
 }
 
+// IsVersionTag reports whether tag starts with a semantic version. It is used
+// by callers to avoid expensive tag-listing for mutable streams like "latest".
+func IsVersionTag(tag string) bool {
+	_, ok := parseSemver(tag)
+	return ok
+}
+
 // LatestTag fetches all tags for the repository referenced by imageRef and
 // returns the highest semver tag together with its digest.  Non-semver tags
 // (e.g. "latest", "main", "edge") are ignored.  When the highest semver tag
@@ -267,6 +274,8 @@ func selectLatestSemverTag(tags []string, currentTag, platform, repository strin
 	// Derive the arch string to filter on (e.g. "amd64" from "linux/amd64").
 	archHint := archFromPlatform(platform)
 	compatible := filterByTagCompatibility(filterByArch(tags, currentTag, archHint), currentTag, platform)
+	compatible = filterByVersionStyle(compatible, currentTag)
+	compatible = filterByVersionStreamCompatibility(compatible, currentTag)
 	compatible = filterByStreamCompatibility(compatible, currentTag, repository)
 	compatible = filterByMajorCompatibility(compatible, currentTag, repository)
 	best := bestSemver(compatible)
@@ -281,6 +290,112 @@ func selectLatestSemverTag(tags []string, currentTag, platform, repository strin
 	}
 
 	return best
+}
+
+func filterByVersionStyle(tags []string, currentTag string) []string {
+	current, ok := parseSemver(currentTag)
+	if !ok {
+		return tags
+	}
+
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		candidate, ok := parseSemver(tag)
+		if !ok {
+			out = append(out, tag)
+			continue
+		}
+		if versionStylesCompatible(current, candidate) {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
+func versionStylesCompatible(current, candidate semverTag) bool {
+	// v-prefixed streams such as v3.41.1 should not be compared against plain
+	// numeric build tags like 1243.
+	if current.vPrefix != candidate.vPrefix {
+		return false
+	}
+
+	// v-prefixed dotted release streams like "v3.41.1" should ignore plain
+	// numeric build IDs like "1243". Major-only streams such as "15" must stay
+	// comparable with "15.18" and "16".
+	if current.vPrefix && current.parts >= 2 && candidate.parts < 2 {
+		return false
+	}
+	return true
+}
+
+func filterByVersionStreamCompatibility(tags []string, currentTag string) []string {
+	if _, ok := parseSemver(currentTag); !ok {
+		return tags
+	}
+
+	currentStream := versionStreamTokens(currentTag)
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if _, ok := parseSemver(tag); !ok {
+			out = append(out, tag)
+			continue
+		}
+		if stringSlicesEqual(versionStreamTokens(tag), currentStream) {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
+func versionStreamTokens(tag string) []string {
+	remainder := strings.Trim(versionRemainder(tag), "-._")
+	if remainder == "" {
+		return nil
+	}
+
+	rawTokens := tagTokenRE.FindAllString(remainder, -1)
+	tokens := make([]string, 0, len(rawTokens))
+	for _, raw := range rawTokens {
+		token := normalizeStreamToken(raw)
+		if token == "" {
+			continue
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens
+}
+
+func normalizeStreamToken(token string) string {
+	if token == "" || allDigits(token) || prereleaseTokenRE.MatchString(token) {
+		return ""
+	}
+	for _, variant := range knownVariantTokens {
+		if token == variant || strings.HasPrefix(token, variant) {
+			return variant
+		}
+	}
+	return ""
+}
+
+func allDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func filterByStreamCompatibility(tags []string, currentTag, repository string) []string {
@@ -387,7 +502,7 @@ var knownArchSuffixes = []string{
 
 var knownVariantTokens = []string{
 	"slim", "alpine", "bookworm", "bullseye", "buster", "trixie",
-	"jammy", "noble", "windowsservercore", "nanoserver",
+	"jammy", "noble", "windowsservercore", "nanoserver", "perl", "otel",
 }
 
 var windowsVariantTokens = []string{"windowsservercore", "nanoserver"}
@@ -508,10 +623,12 @@ func versionRemainder(tag string) string {
 var semverRE = regexp.MustCompile(`^v?(\d+)(?:\.(\d+)(?:\.(\d+))?)?`)
 
 type semverTag struct {
-	raw   string
-	major int
-	minor int
-	patch int
+	raw     string
+	major   int
+	minor   int
+	patch   int
+	parts   int
+	vPrefix bool
 }
 
 // parseSemver returns a semverTag when the tag looks like a version number,
@@ -529,11 +646,24 @@ func parseSemver(tag string) (semverTag, bool) {
 		return n
 	}
 	return semverTag{
-		raw:   tag,
-		major: atoi(m[1]),
-		minor: atoi(m[2]),
-		patch: atoi(m[3]),
+		raw:     tag,
+		major:   atoi(m[1]),
+		minor:   atoi(m[2]),
+		patch:   atoi(m[3]),
+		parts:   versionPartCount(m),
+		vPrefix: strings.HasPrefix(strings.ToLower(tag), "v"),
 	}, true
+}
+
+func versionPartCount(match []string) int {
+	parts := 1
+	if match[2] != "" {
+		parts++
+	}
+	if match[3] != "" {
+		parts++
+	}
+	return parts
 }
 
 // bestSemver returns the lexicographically/numerically highest semver tag from

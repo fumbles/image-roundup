@@ -26,6 +26,29 @@ func TestDockerHubAuthConfigReadsDockerIOAlias(t *testing.T) {
 	}
 }
 
+func TestIsVersionTag(t *testing.T) {
+	tests := []struct {
+		tag  string
+		want bool
+	}{
+		{tag: "1.0.1", want: true},
+		{tag: "1.0.1-alpine", want: true},
+		{tag: "v1.0.1", want: true},
+		{tag: "latest", want: false},
+		{tag: "develop", want: false},
+		{tag: "nightly", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tag, func(t *testing.T) {
+			got := IsVersionTag(tt.tag)
+			if got != tt.want {
+				t.Fatalf("IsVersionTag() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSelectLatestSemverTag(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -120,6 +143,77 @@ func TestSelectLatestSemverTag(t *testing.T) {
 			platform:   "linux/amd64",
 			repository: "index.docker.io/library/nginx",
 			want:       "1.32.0",
+		},
+		{
+			name: "nginx generic stream ignores perl variant",
+			tags: []string{
+				"1.31.2",
+				"1.31.3-perl",
+				"1.31.3-otel",
+				"1.31.3",
+			},
+			currentTag: "1.31.2",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/library/nginx",
+			want:       "1.31.3",
+		},
+		{
+			name: "nginx generic stream does not cross to otel variant",
+			tags: []string{
+				"1.31.2",
+				"1.31.3-otel",
+			},
+			currentTag: "1.31.2",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/library/nginx",
+			want:       "",
+		},
+		{
+			name: "nginx perl stream keeps perl variant",
+			tags: []string{
+				"1.31.2-perl",
+				"1.31.3",
+				"1.31.3-perl",
+			},
+			currentTag: "1.31.2-perl",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/library/nginx",
+			want:       "1.31.3-perl",
+		},
+		{
+			name: "v-prefixed dotted stream ignores plain numeric build tags",
+			tags: []string{
+				"v3.41.1",
+				"1243",
+				"v3.41.2",
+			},
+			currentTag: "v3.41.1",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/qmcgaw/gluetun",
+			want:       "v3.41.2",
+		},
+		{
+			name: "v-prefixed dotted stream does not suggest plain numeric tag",
+			tags: []string{
+				"v3.41.1",
+				"1243",
+			},
+			currentTag: "v3.41.1",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/qmcgaw/gluetun",
+			want:       "",
+		},
+		{
+			name: "app version tag can suggest newer patch",
+			tags: []string{
+				"latest",
+				"1.0.1",
+				"1.0.2",
+			},
+			currentTag: "1.0.1",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/fumbles/image-roundup",
+			want:       "1.0.2",
 		},
 		{
 			name: "linuxserver latest stream ignores develop and nightly tags",

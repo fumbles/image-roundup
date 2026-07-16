@@ -75,19 +75,30 @@ the REST API.
    - background scanner loop
 2. `k8s.Client.DiscoverImages` lists pods, resolves top-level workload owners,
    and builds `models.ImageRecord` values.
-3. `k8s.Scanner.checkRecords` resolves registry digests with bounded
+3. Discovery also reads top-level workload metadata when RBAC allows it and
+   detects Helm-managed workloads from `app.kubernetes.io/managed-by=Helm` and
+   `meta.helm.sh/*` annotations.
+4. `k8s.Scanner.checkRecords` resolves registry digests with bounded
    concurrency. Duplicate lookup image references in the same scan are grouped,
    so a shared image is checked once and the result is fanned out to each
    workload record.
-4. Each record gets a status:
-   - `up_to_date`: running digest matches registry platform digest or index digest
-   - `update_available`: running digest differs from registry digest
+5. Each record gets a status:
+   - `up_to_date`: running digest matches registry platform/index digest and
+     no newer compatible version tag was found
+   - `update_available`: running digest differs from registry digest, or a
+     newer compatible version tag is available
    - `unknown`: no reliable running digest or comparison data
    - `check_failed`: registry/API/auth/TLS lookup failed
-5. If a record has `update_available`, the registry checker may list tags and
-   select a compatible newer tag for display.
-6. The store is replaced after full scans, or selectively replaced after scoped
+6. If a record has `update_available`, or is pinned to a version-like tag such
+   as `1.0.1`, the registry checker may list tags and select a compatible newer
+   tag for display.
+7. The store is replaced after full scans, or selectively replaced after scoped
    namespace/workload scans.
+
+Helm detection does not currently resolve latest chart versions. That would
+require a trusted chart repository mapping or reading Helm release metadata and
+querying configured chart repositories, similar to `helm repo update` plus
+`helm search repo`.
 
 ## Backend Components
 
@@ -98,6 +109,7 @@ the REST API.
 - `GET /api/v1/docs`
 - `GET /api/v1/openapi.json`
 - `GET /api/v1/summary`
+- `GET /api/v1/summary/updates`
 - `GET /api/v1/images`
 - `GET /api/v1/images/{id}`
 - `GET /api/v1/registries`

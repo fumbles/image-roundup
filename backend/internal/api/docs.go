@@ -48,6 +48,23 @@ const openAPISpecJSON = `{
         }
       }
     },
+    "/summary/updates": {
+      "get": {
+        "tags": ["inventory"],
+        "summary": "Get concise update summary",
+        "description": "Returns a compact list of image updates suitable for cron jobs and notification integrations.",
+        "responses": {
+          "200": {
+            "description": "Concise update summary",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UpdatesSummary" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/images": {
       "get": {
         "tags": ["inventory"],
@@ -246,6 +263,39 @@ const openAPISpecJSON = `{
           "lastScan": { "type": ["string", "null"], "format": "date-time" }
         }
       },
+      "UpdatesSummary": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "lastScan": { "type": ["string", "null"], "format": "date-time" },
+          "updates": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/UpdateSummary" }
+          }
+        }
+      },
+      "UpdateSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "image": { "type": "string" },
+          "currentVersion": { "type": "string" },
+          "latestVersion": { "type": "string" },
+          "namespace": { "type": "string" },
+          "workload": { "type": "string" },
+          "workloadKind": { "type": "string" },
+          "workloadName": { "type": "string" },
+          "containerName": { "type": "string" },
+          "management": { "$ref": "#/components/schemas/ManagementInfo" },
+          "registry": { "type": "string" },
+          "repository": { "type": "string" },
+          "updateReason": { "type": "string", "enum": ["newer_version_tag", "digest_changed"] },
+          "lastChecked": { "type": ["string", "null"], "format": "date-time" },
+          "runningDigest": { "type": "string" },
+          "registryDigest": { "type": "string" },
+          "latestTagDigest": { "type": "string" }
+        }
+      },
       "ImageRecord": {
         "type": "object",
         "properties": {
@@ -254,6 +304,7 @@ const openAPISpecJSON = `{
           "workloadKind": { "type": "string" },
           "workloadName": { "type": "string" },
           "containerName": { "type": "string" },
+          "management": { "$ref": "#/components/schemas/ManagementInfo" },
           "configuredImage": { "type": "string" },
           "registry": { "type": "string" },
           "repository": { "type": "string" },
@@ -268,6 +319,15 @@ const openAPISpecJSON = `{
           "podNames": { "type": "array", "items": { "type": "string" } },
           "lastChecked": { "type": ["string", "null"], "format": "date-time" },
           "error": { "type": "string" }
+        }
+      },
+      "ManagementInfo": {
+        "type": "object",
+        "properties": {
+          "tool": { "type": "string" },
+          "managedBy": { "type": "string" },
+          "helmReleaseName": { "type": "string" },
+          "helmReleaseNamespace": { "type": "string" }
         }
       },
       "RegistryInfo": {

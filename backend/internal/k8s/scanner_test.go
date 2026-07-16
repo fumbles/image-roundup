@@ -131,6 +131,28 @@ func TestIsWorkloadExcluded(t *testing.T) {
 	}
 }
 
+func TestManagementFromMetadataDetectsHelm(t *testing.T) {
+	got := managementFromMetadata(
+		map[string]string{"app.kubernetes.io/managed-by": "Helm"},
+		map[string]string{
+			"meta.helm.sh/release-name":      "kyverno",
+			"meta.helm.sh/release-namespace": "kyverno",
+		},
+	)
+	if got == nil {
+		t.Fatal("expected Helm management info")
+	}
+	if got.Tool != "Helm" || got.HelmReleaseName != "kyverno" || got.HelmReleaseNamespace != "kyverno" {
+		t.Fatalf("unexpected management info: %#v", got)
+	}
+}
+
+func TestManagementFromMetadataIgnoresUnmanaged(t *testing.T) {
+	if got := managementFromMetadata(nil, nil); got != nil {
+		t.Fatalf("managementFromMetadata() = %#v, want nil", got)
+	}
+}
+
 func TestScanWorkerCount(t *testing.T) {
 	tests := []struct {
 		records int

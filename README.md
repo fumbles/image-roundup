@@ -5,7 +5,7 @@
 
 > **See what's running and what's changed.**
 
-Image Roundup is a lightweight, read-only web application for Kubernetes and OpenShift that inventories container images running across a cluster and determines whether each workload is using the same image digest currently published by its configured registry tag.
+Image Roundup is a lightweight, read-only web application for Kubernetes and OpenShift that inventories container images running across a cluster and determines whether each workload is using the same image digest currently published by its configured registry tag or has a newer compatible version tag available.
 
 ## What it answers
 
@@ -21,13 +21,16 @@ Image Roundup is a lightweight, read-only web application for Kubernetes and Ope
 - Cluster-wide image inventory with namespace, workload, container, pod, tag,
   running digest, registry digest, and platform details.
 - Digest comparison against the registry tag currently configured on each
-  workload.
-- Reachable Api docs page and access for use by other applications (https://\<route\>/api/v1/docs)
+  workload, plus compatible semver checks for immutable version tags.
+- Reachable API docs page and access for use by other applications
+  (`https://<route>/api/v1/docs`).
 - Multi-arch awareness: comparisons use platform digests while preserving index
   digests for inspection.
 - Compatible latest-tag hints for update candidates, with guardrails for
   architecture variants, distro variants, prerelease tags, LinuxServer streams,
   and Postgres/PostgreSQL major versions.
+- Helm-managed workload detection from Kubernetes metadata, including release
+  name and namespace when available.
 - Scoped manual refreshes for the full cluster, a namespace, or a workload.
 - OpenShift integrated registry Route autodetection and optional internal
   registry image exclusion.
@@ -66,6 +69,7 @@ Image Roundup is a lightweight, read-only web application for Kubernetes and Ope
 ┌───────────────────▼─────────────────────────────┐
 │  Go HTTP server  (:8080)                        │
 │  ├─ /api/v1/summary                             │
+│  ├─ /api/v1/summary/updates                     │
 │  ├─ /api/v1/images                              │
 │  ├─ /api/v1/registries                          │
 │  ├─ /api/v1/scan                                │
@@ -152,6 +156,7 @@ OpenAPI document is available at `/api/v1/openapi.json`.
 | GET | `/api/v1/docs` | Interactive API documentation |
 | GET | `/api/v1/openapi.json` | OpenAPI 3.1 document |
 | GET | `/api/v1/summary` | Dashboard summary counts |
+| GET | `/api/v1/summary/updates` | Concise update list for automation |
 | GET | `/api/v1/images` | All image records; supports `?search=&namespace=&registry=&kind=&status=` |
 | GET | `/api/v1/images/{id}` | Single image record |
 | GET | `/api/v1/registries` | Registry summary |
@@ -203,8 +208,8 @@ The included Kubernetes deployment sets `DATA_DIR=/data`,
 
 | Status | Meaning |
 |--------|---------|
-| `up_to_date` | Running digest matches the current registry tag digest |
-| `update_available` | Running digest differs from the current registry tag digest |
+| `up_to_date` | Running digest matches the current registry tag digest and no newer compatible version tag was found |
+| `update_available` | Running digest differs from the current registry tag digest, or a newer compatible version tag is available |
 | `unknown` | Cannot make a reliable comparison (no tag, digest-only, missing runtime status) |
 | `check_failed` | Registry lookup failed (auth, connectivity, rate limiting) |
 

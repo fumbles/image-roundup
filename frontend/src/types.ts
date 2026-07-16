@@ -8,6 +8,7 @@ export interface ImageRecord {
   workloadKind: string
   workloadName: string
   containerName: string
+  management?: ManagementInfo
   configuredImage: string
   registry: string
   repository: string
@@ -22,6 +23,13 @@ export interface ImageRecord {
   podNames: string[]
   lastChecked: string | null
   error?: string
+}
+
+export interface ManagementInfo {
+  tool: string
+  managedBy?: string
+  helmReleaseName?: string
+  helmReleaseNamespace?: string
 }
 
 export interface Summary {

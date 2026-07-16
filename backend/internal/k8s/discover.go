@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -68,6 +69,7 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 	if err != nil {
 		c.log.Warn("could not build ReplicaSet owner map, workload names may show RS names", zap.Error(err))
 	}
+	workloadManagement := c.buildWorkloadManagementMap(ctx, pods, rsOwners)
 
 	// Build image records indexed by composite key.
 	byKey := make(map[string]*models.ImageRecord)
@@ -87,6 +89,7 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 		if !workloadMatches(owner, opts) {
 			continue
 		}
+		management := workloadManagement[ownerKey(pod.Namespace, owner)]
 		for _, cs := range pod.Status.ContainerStatuses {
 			specImage := containerSpecImage(pod, cs.Name)
 			if specImage == "" {
@@ -107,6 +110,7 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 					WorkloadKind:    owner.Kind,
 					WorkloadName:    owner.Name,
 					ContainerName:   cs.Name,
+					Management:      management,
 					ConfiguredImage: specImage,
 					Registry:        ref.Registry,
 					Repository:      ref.Repository,
@@ -146,6 +150,7 @@ func (c *Client) DiscoverImages(ctx context.Context, opts DiscoveryOptions) ([]*
 					WorkloadKind:    owner.Kind,
 					WorkloadName:    owner.Name,
 					ContainerName:   "init:" + cs.Name,
+					Management:      management,
 					ConfiguredImage: specImage,
 					Registry:        ref.Registry,
 					Repository:      ref.Repository,
@@ -223,6 +228,16 @@ type ownerRef struct {
 	Name string
 }
 
+type ownerLookupKey struct {
+	Namespace string
+	Kind      string
+	Name      string
+}
+
+func ownerKey(namespace string, owner ownerRef) ownerLookupKey {
+	return ownerLookupKey{Namespace: namespace, Kind: owner.Kind, Name: owner.Name}
+}
+
 // resolvedOwner returns the top-level workload owner for a pod.
 // If the pod is owned by a ReplicaSet that is itself owned by a Deployment,
 // it returns the Deployment — not the intermediate ReplicaSet.
@@ -293,6 +308,104 @@ func (c *Client) buildRSOwnerMap(ctx context.Context, pods []corev1.Pod) (map[st
 		}
 	}
 	return result, nil
+}
+
+func (c *Client) buildWorkloadManagementMap(ctx context.Context, pods []corev1.Pod, rsOwners map[string]ownerRef) map[ownerLookupKey]*models.ManagementInfo {
+	needed := make(map[ownerLookupKey]struct{})
+	result := make(map[ownerLookupKey]*models.ManagementInfo)
+
+	for _, pod := range pods {
+		owner := resolvedOwner(pod, rsOwners)
+		key := ownerKey(pod.Namespace, owner)
+		needed[key] = struct{}{}
+		if owner.Kind == "Pod" {
+			result[key] = managementFromMetadata(pod.Labels, pod.Annotations)
+		}
+	}
+
+	type groupKey struct {
+		Namespace string
+		Kind      string
+	}
+	grouped := make(map[groupKey]map[string]ownerLookupKey)
+	for key := range needed {
+		if key.Kind == "Pod" {
+			continue
+		}
+		g := groupKey{Namespace: key.Namespace, Kind: key.Kind}
+		if grouped[g] == nil {
+			grouped[g] = make(map[string]ownerLookupKey)
+		}
+		grouped[g][key.Name] = key
+	}
+
+	for group, names := range grouped {
+		gvr, ok := workloadGVR(group.Kind)
+		if !ok {
+			continue
+		}
+
+		list, err := c.dyn.Resource(gvr).Namespace(group.Namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			c.log.Debug("could not list workload metadata for management detection",
+				zap.String("namespace", group.Namespace),
+				zap.String("kind", group.Kind),
+				zap.Error(err))
+			continue
+		}
+
+		for i := range list.Items {
+			item := &list.Items[i]
+			key, ok := names[item.GetName()]
+			if !ok {
+				continue
+			}
+			result[key] = managementFromMetadata(item.GetLabels(), item.GetAnnotations())
+		}
+	}
+
+	return result
+}
+
+func workloadGVR(kind string) (schema.GroupVersionResource, bool) {
+	switch strings.ToLower(kind) {
+	case "deployment":
+		return schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, true
+	case "statefulset":
+		return schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, true
+	case "daemonset":
+		return schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "daemonsets"}, true
+	case "replicaset":
+		return schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "replicasets"}, true
+	case "job":
+		return schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "jobs"}, true
+	case "cronjob":
+		return schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "cronjobs"}, true
+	case "deploymentconfig":
+		return schema.GroupVersionResource{Group: "apps.openshift.io", Version: "v1", Resource: "deploymentconfigs"}, true
+	default:
+		return schema.GroupVersionResource{}, false
+	}
+}
+
+func managementFromMetadata(labels, annotations map[string]string) *models.ManagementInfo {
+	managedBy := labels["app.kubernetes.io/managed-by"]
+	releaseName := annotations["meta.helm.sh/release-name"]
+	releaseNamespace := annotations["meta.helm.sh/release-namespace"]
+
+	if !strings.EqualFold(managedBy, "Helm") && releaseName == "" {
+		return nil
+	}
+
+	if managedBy == "" {
+		managedBy = "Helm"
+	}
+	return &models.ManagementInfo{
+		Tool:                 "Helm",
+		ManagedBy:            managedBy,
+		HelmReleaseName:      releaseName,
+		HelmReleaseNamespace: releaseNamespace,
+	}
 }
 
 func isPodCompleted(pod corev1.Pod) bool {

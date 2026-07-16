@@ -28,7 +28,8 @@ spec:
             claimName: image-roundup-data
       containers:
         - name: image-roundup
-          image: docker.io/fumbles/image-roundup:latest
+          #image: docker.io/fumbles/image-roundup:latest
+          image: docker.io/fumbles/image-roundup:1.0.6
           imagePullPolicy: Always
           ports:
             - name: http

@@ -17,10 +17,11 @@ type ImageRecord struct {
 	// ID is a stable composite key: namespace:workloadKind:workloadName:containerName
 	ID string `json:"id"`
 
-	Namespace     string `json:"namespace"`
-	WorkloadKind  string `json:"workloadKind"`
-	WorkloadName  string `json:"workloadName"`
-	ContainerName string `json:"containerName"`
+	Namespace     string          `json:"namespace"`
+	WorkloadKind  string          `json:"workloadKind"`
+	WorkloadName  string          `json:"workloadName"`
+	ContainerName string          `json:"containerName"`
+	Management    *ManagementInfo `json:"management,omitempty"`
 
 	// ConfiguredImage is the full image reference from the pod spec.
 	ConfiguredImage string `json:"configuredImage"`
@@ -39,9 +40,10 @@ type ImageRecord struct {
 	// Docker Hub as "Index Digest"). Empty for single-arch images.
 	IndexDigest string `json:"indexDigest,omitempty"`
 
-	// LatestTag is the newest semver tag found in the registry for this image's
-	// repository (e.g. "2.5.2" when the workload is running "2.5.1").
-	// Empty when unavailable or when the workload already uses the latest tag.
+	// LatestTag is the newest compatible semver tag found in the registry for
+	// this image's repository (e.g. "2.5.2" when the workload is running
+	// "2.5.1"). Empty when unavailable or when the workload already uses the
+	// latest compatible tag.
 	LatestTag string `json:"latestTag,omitempty"`
 	// LatestTagDigest is the digest the latest tag currently resolves to.
 	LatestTagDigest string `json:"latestTagDigest,omitempty"`
@@ -65,6 +67,43 @@ type Summary struct {
 	CheckFailed      int        `json:"checkFailed"`
 	UniqueRegistries int        `json:"uniqueRegistries"`
 	LastScan         *time.Time `json:"lastScan"`
+}
+
+// ManagementInfo describes the tool that manages the owning workload, when it
+// can be detected from Kubernetes metadata.
+type ManagementInfo struct {
+	Tool                 string `json:"tool"`
+	ManagedBy            string `json:"managedBy,omitempty"`
+	HelmReleaseName      string `json:"helmReleaseName,omitempty"`
+	HelmReleaseNamespace string `json:"helmReleaseNamespace,omitempty"`
+}
+
+// UpdateSummary is a concise update record for automation consumers.
+type UpdateSummary struct {
+	ID              string          `json:"id"`
+	Image           string          `json:"image"`
+	CurrentVersion  string          `json:"currentVersion"`
+	LatestVersion   string          `json:"latestVersion,omitempty"`
+	Namespace       string          `json:"namespace"`
+	Workload        string          `json:"workload"`
+	WorkloadKind    string          `json:"workloadKind"`
+	WorkloadName    string          `json:"workloadName"`
+	ContainerName   string          `json:"containerName"`
+	Management      *ManagementInfo `json:"management,omitempty"`
+	Registry        string          `json:"registry"`
+	Repository      string          `json:"repository"`
+	UpdateReason    string          `json:"updateReason"`
+	LastChecked     *time.Time      `json:"lastChecked"`
+	RunningDigest   string          `json:"runningDigest,omitempty"`
+	RegistryDigest  string          `json:"registryDigest,omitempty"`
+	LatestTagDigest string          `json:"latestTagDigest,omitempty"`
+}
+
+// UpdatesSummary is the payload for GET /api/v1/summary/updates.
+type UpdatesSummary struct {
+	Count    int             `json:"count"`
+	LastScan *time.Time      `json:"lastScan"`
+	Updates  []UpdateSummary `json:"updates"`
 }
 
 // RegistryInfo is the payload for GET /api/v1/registries.

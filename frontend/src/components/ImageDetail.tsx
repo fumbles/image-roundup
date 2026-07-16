@@ -23,6 +23,15 @@ export default function ImageDetail({
   const latestTagURL = record.latestTag
     ? registryTagURL(record.registry, record.repository, record.latestTag)
     : null
+  const managementText = record.management
+    ? record.management.tool === 'Helm'
+      ? [
+          'Helm',
+          record.management.helmReleaseName ? `release ${record.management.helmReleaseName}` : null,
+          record.management.helmReleaseNamespace ? `namespace ${record.management.helmReleaseNamespace}` : null,
+        ].filter(Boolean).join(' · ')
+      : record.management.tool
+    : null
 
   const plainLang = (): string => {
     const isMultiArch = !!record.indexDigest
@@ -83,6 +92,16 @@ export default function ImageDetail({
           {row('Status', <StatusBadge status={record.status} />)}
           {row('Namespace', record.namespace)}
           {row('Workload', `${record.workloadKind} / ${record.workloadName}`)}
+          {managementText && row('Managed by',
+            <span>
+              {managementText}
+              {record.management?.tool === 'Helm' && (
+                <span style={{ color: 'var(--cds-text-secondary)' }}>
+                  {' '}· upgrade with Helm chart/release, not by editing the workload image directly
+                </span>
+              )}
+            </span>
+          )}
           {row('Container', record.containerName)}
           {row('Configured image',
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

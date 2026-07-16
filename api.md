@@ -12,7 +12,8 @@ Interactive docs are available from the running app:
 ## Polling for Updates
 
 The lowest-cost check is `GET /api/v1/summary`. Use `updatesAvailable` to decide
-whether anything needs attention.
+whether anything needs attention. This count includes digest drift for mutable
+tags and newer compatible semver tags for immutable version tags.
 
 ```sh
 curl -s http://localhost:8080/api/v1/summary
@@ -45,11 +46,43 @@ To fetch the actual update records:
 curl -s 'http://localhost:8080/api/v1/images?status=update_available'
 ```
 
+To fetch a concise update summary for automation:
+
+```sh
+curl -s http://localhost:8080/api/v1/summary/updates
+```
+
+Example response:
+
+```json
+{
+  "count": 1,
+  "lastScan": "2026-07-15T20:35:44Z",
+  "updates": [
+    {
+      "image": "docker.io/fumbles/image-roundup:1.0.1",
+      "currentVersion": "1.0.1",
+      "latestVersion": "1.0.2",
+      "namespace": "image-roundup",
+      "workload": "Deployment/image-roundup",
+      "containerName": "image-roundup",
+      "management": {
+        "tool": "Helm",
+        "managedBy": "Helm",
+        "helmReleaseName": "image-roundup",
+        "helmReleaseNamespace": "image-roundup"
+      },
+      "updateReason": "newer_version_tag"
+    }
+  ]
+}
+```
+
 Useful compact output:
 
 ```sh
-curl -s 'http://localhost:8080/api/v1/images?status=update_available' \
-  | jq -r '.[] | "\(.namespace)\t\(.workloadKind)/\(.workloadName)\t\(.configuredImage)\t\(.tag) -> \(.latestTag // "(digest changed)")"'
+curl -s http://localhost:8080/api/v1/summary/updates \
+  | jq -r '.updates[] | "\(.namespace)\t\(.workload)\t\(.image)\t\(.currentVersion) -> \(.latestVersion // "digest changed")"'
 ```
 
 ## Triggering and Waiting for a Scan
@@ -112,6 +145,7 @@ If another scan is already active, the API returns `409 Conflict`:
 | `GET` | `/api/v1/docs` | Interactive API documentation |
 | `GET` | `/api/v1/openapi.json` | OpenAPI 3.1 document |
 | `GET` | `/api/v1/summary` | Summary counts and last scan time |
+| `GET` | `/api/v1/summary/updates` | Concise update list for automation |
 | `GET` | `/api/v1/images` | Image records; supports filters |
 | `GET` | `/api/v1/images/{id}` | Single image record |
 | `GET` | `/api/v1/registries` | Registry summary |
@@ -139,8 +173,8 @@ Status values:
 
 | Status | Meaning |
 |--------|---------|
-| `up_to_date` | Running digest matches the registry digest for the configured tag |
-| `update_available` | Running digest differs from the registry digest for the configured tag |
+| `up_to_date` | Running digest matches the registry digest for the configured tag and no newer compatible version tag was found |
+| `update_available` | Running digest differs from the registry digest for the configured tag, or a newer compatible version tag is available |
 | `unknown` | Image could not be compared, usually because it lacks tag/digest data |
 | `check_failed` | Registry lookup failed |
 
