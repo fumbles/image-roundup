@@ -36,7 +36,7 @@ const openAPISpecJSON = `{
       "get": {
         "tags": ["inventory"],
         "summary": "Get summary counts",
-        "description": "Returns current image counts by status and the last completed scan timestamp.",
+        "description": "Returns current image counts by status and the last completed scan timestamp. Helm-managed image updates are excluded from image update counts because chart updates are tracked under Helm.",
         "responses": {
           "200": {
             "description": "Summary counts",
@@ -53,7 +53,7 @@ const openAPISpecJSON = `{
       "get": {
         "tags": ["inventory"],
         "summary": "Get concise update summary",
-        "description": "Returns a compact list of image updates suitable for cron jobs and notification integrations.",
+        "description": "Returns a compact list of non-Helm-managed image updates suitable for cron jobs and notification integrations. Helm-managed image updates are intentionally omitted and should be reviewed through the Helm release endpoints.",
         "responses": {
           "200": {
             "description": "Concise update summary",
@@ -70,7 +70,7 @@ const openAPISpecJSON = `{
       "get": {
         "tags": ["inventory"],
         "summary": "List image records",
-        "description": "Returns discovered image records. Query parameters can filter by namespace, registry, workload kind, status, or search text.",
+        "description": "Returns discovered image records. Query parameters can filter by namespace, registry, workload kind, status, or search text. The update_available status filter omits Helm-managed image updates because those are surfaced as chart updates in the Helm view.",
         "parameters": [
           { "name": "search", "in": "query", "schema": { "type": "string" }, "description": "Searches image, namespace, workload, and container" },
           { "name": "namespace", "in": "query", "schema": { "type": "string" }, "description": "Exact namespace match" },

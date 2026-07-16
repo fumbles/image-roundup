@@ -28,8 +28,8 @@ spec:
             claimName: image-roundup-data
       containers:
         - name: image-roundup
-          #image: docker.io/fumbles/image-roundup:latest
-          image: docker.io/fumbles/image-roundup:1.0.8
+          image: docker.io/fumbles/image-roundup:latest
+          #image: docker.io/fumbles/image-roundup:1.0.9
           imagePullPolicy: Always
           ports:
             - name: http
@@ -50,10 +50,23 @@ spec:
             # Leave this false if you want Image Roundup to inspect internal registry images.
             - name: EXCLUDE_INTERNAL_REGISTRY
               value: "true"
+            # Comma-separated namespace denylist. Supports a trailing wildcard.
+            # This overrides the built-in default, so keep the kube*/openshift*
+            # entries when adding local operator-managed namespaces.
+            - name: EXCLUDED_NAMESPACES
+              value: "kube-system,kube-public,kube-node-lease,openshift*,istio*"
             # Default scan interval is 8 h (28800 s).
             # Override here if you need a different cadence:
             # - name: SCAN_INTERVAL_SECONDS
             #   value: "3600"
+            # Comma-separated chart repository mappings used by the Helm tab.
+            # Format: name=https://repo.example,name2=https://repo2.example
+            - name: HELM_REPOSITORIES
+              value: >-
+                longhorn=https://charts.longhorn.io,
+                kyverno=https://kyverno.github.io/kyverno/,
+                policy-reporter=https://kyverno.github.io/policy-reporter,
+                openshift-helm-charts=https://charts.openshift.io/
           volumeMounts:
             - name: data
               mountPath: /data
@@ -75,10 +88,10 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 64Mi
+              memory: 128Mi
             limits:
               cpu: 200m
-              memory: 128Mi
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false  # /data must be writable

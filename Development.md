@@ -280,7 +280,14 @@ Environment variables:
 
 The Kubernetes deployment currently sets `DATA_DIR=/data`,
 `DOCKER_CONFIG=/var/run/registry-auth`, and
-`EXCLUDE_INTERNAL_REGISTRY=true`.
+`EXCLUDE_INTERNAL_REGISTRY=true`. It also sets `EXCLUDED_NAMESPACES` to
+`kube-system,kube-public,kube-node-lease,openshift*,istio*`; because this env
+var overrides defaults, keep the kube*/openshift* entries when adding local
+operator-managed namespaces. Starter `HELM_REPOSITORIES` mappings cover
+Longhorn, Kyverno, Policy Reporter, and OpenShift Helm charts. Keep the value
+comma-separated as `name=https://repo`.
+Helm repository `index.yaml` files larger than 8 MiB are skipped to avoid
+excessive memory use in small pods.
 
 ## Local Development
 

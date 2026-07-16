@@ -3,6 +3,7 @@ package chartrepo
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/yamlwrangler/image-roundup/backend/internal/models"
 )
+
+const maxIndexBytes = 8 * 1024 * 1024
 
 // EnrichHelmReleases annotates installed Helm releases with latest chart
 // versions from configured repository indexes.
@@ -102,15 +105,35 @@ func fetchIndex(ctx context.Context, repo models.HelmRepository, timeout time.Du
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return repoIndex{}, fmt.Errorf("GET %s: HTTP %d", url, resp.StatusCode)
 	}
+	data, err := readIndexBody(resp.Body, resp.ContentLength, url)
+	if err != nil {
+		return repoIndex{}, err
+	}
 
 	var index repoIndex
-	if err := yaml.NewDecoder(resp.Body).Decode(&index); err != nil {
+	if err := yaml.Unmarshal(data, &index); err != nil {
 		return repoIndex{}, err
 	}
 	if index.Entries == nil {
 		index.Entries = map[string][]chartVersion{}
 	}
 	return index, nil
+}
+
+func readIndexBody(body io.Reader, contentLength int64, url string) ([]byte, error) {
+	if contentLength > maxIndexBytes {
+		return nil, fmt.Errorf("GET %s: index.yaml is %d bytes, limit is %d bytes", url, contentLength, maxIndexBytes)
+	}
+
+	limited := io.LimitReader(body, maxIndexBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxIndexBytes {
+		return nil, fmt.Errorf("GET %s: index.yaml exceeds %d bytes", url, maxIndexBytes)
+	}
+	return data, nil
 }
 
 func latestChartVersion(entries []chartVersion) chartVersion {

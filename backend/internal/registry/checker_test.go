@@ -243,6 +243,32 @@ func TestSelectLatestSemverTag(t *testing.T) {
 			repository: "lscr.io/linuxserver/prowlarr",
 			want:       "2.5.1-develop",
 		},
+		{
+			name: "stable alpine stream ignores numeric alpine slim release tags",
+			tags: []string{
+				"stable-alpine",
+				"stable-alpine3.22",
+				"1.31.3",
+				"1.31.3-alpine3.24-slim",
+			},
+			currentTag: "stable-alpine",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/nginxinc/nginx-unprivileged",
+			want:       "",
+		},
+		{
+			name: "stable alpine stream ignores other stable variants",
+			tags: []string{
+				"stable-alpine",
+				"stable-perl",
+				"stable-otel",
+				"1.31.3-alpine3.24",
+			},
+			currentTag: "stable-alpine",
+			platform:   "linux/amd64",
+			repository: "index.docker.io/nginxinc/nginx-unprivileged",
+			want:       "",
+		},
 	}
 
 	for _, tt := range tests {

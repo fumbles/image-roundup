@@ -20,6 +20,9 @@ export default function ImageDetail({
   onRefreshNamespace,
   onRefreshWorkload,
 }: ImageDetailProps) {
+  const configuredTagURL = record.tag
+    ? registryTagURL(record.registry, record.repository, record.tag)
+    : null
   const latestTagURL = record.latestTag
     ? registryTagURL(record.registry, record.repository, record.latestTag)
     : null
@@ -109,7 +112,25 @@ export default function ImageDetail({
               <CopyButton text={record.configuredImage} label="Copy image ref" />
             </span>
           )}
-          {row('Configured tag', record.tag || '—')}
+          {row('Configured tag',
+            record.tag
+              ? <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>{record.tag}</span>
+                  <CopyButton text={record.tag} label="Copy tag" />
+                  {configuredTagURL && (
+                    <Link
+                      href={configuredTagURL}
+                      target="_blank"
+                      rel="noreferrer"
+                      renderIcon={Launch}
+                      size="sm"
+                    >
+                      Inspect tag
+                    </Link>
+                  )}
+                </span>
+              : '—'
+          )}
           {row('Running digest',
             record.runningDigest
               ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

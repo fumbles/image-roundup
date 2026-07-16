@@ -128,6 +128,9 @@ func (h *Handler) getSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, rec := range records {
 		registries[rec.Registry] = struct{}{}
+		if suppressImageUpdate(rec) {
+			continue
+		}
 		switch rec.Status {
 		case models.StatusUpToDate:
 			s.UpToDate++
@@ -152,6 +155,9 @@ func (h *Handler) getUpdatesSummary(w http.ResponseWriter, r *http.Request) {
 
 	for _, rec := range records {
 		if rec.Status != models.StatusUpdateAvailable {
+			continue
+		}
+		if suppressImageUpdate(rec) {
 			continue
 		}
 		result.Updates = append(result.Updates, updateSummaryFromRecord(rec))
@@ -185,6 +191,9 @@ func (h *Handler) getImages(w http.ResponseWriter, r *http.Request) {
 		if status != "" && string(rec.Status) != status {
 			continue
 		}
+		if status == string(models.StatusUpdateAvailable) && suppressImageUpdate(rec) {
+			continue
+		}
 		if search != "" {
 			hay := strings.ToLower(rec.ConfiguredImage + " " + rec.Namespace + " " + rec.WorkloadName + " " + rec.ContainerName)
 			if !strings.Contains(hay, search) {
@@ -197,6 +206,14 @@ func (h *Handler) getImages(w http.ResponseWriter, r *http.Request) {
 		filtered = []*models.ImageRecord{}
 	}
 	writeJSON(w, http.StatusOK, filtered)
+}
+
+func suppressImageUpdate(rec *models.ImageRecord) bool {
+	return rec.Status == models.StatusUpdateAvailable && isHelmManaged(rec)
+}
+
+func isHelmManaged(rec *models.ImageRecord) bool {
+	return rec.Management != nil && strings.EqualFold(rec.Management.Tool, "Helm")
 }
 
 func updateSummaryFromRecord(rec *models.ImageRecord) models.UpdateSummary {

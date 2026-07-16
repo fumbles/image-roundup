@@ -274,6 +274,7 @@ func selectLatestSemverTag(tags []string, currentTag, platform, repository strin
 	// Derive the arch string to filter on (e.g. "amd64" from "linux/amd64").
 	archHint := archFromPlatform(platform)
 	compatible := filterByTagCompatibility(filterByArch(tags, currentTag, archHint), currentTag, platform)
+	compatible = filterByNamedStreamCompatibility(compatible, currentTag, repository)
 	compatible = filterByVersionStyle(compatible, currentTag)
 	compatible = filterByVersionStreamCompatibility(compatible, currentTag)
 	compatible = filterByStreamCompatibility(compatible, currentTag, repository)
@@ -396,6 +397,51 @@ func stringSlicesEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func filterByNamedStreamCompatibility(tags []string, currentTag, repository string) []string {
+	if _, ok := parseSemver(currentTag); ok {
+		return tags
+	}
+
+	stream := namedTagStream(currentTag, repository)
+	if stream == "" {
+		return tags
+	}
+
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if namedTagStream(tag, repository) == stream {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
+func namedTagStream(tag, repository string) string {
+	if linuxServerRepository(repository) {
+		return linuxServerStream(tag)
+	}
+
+	tokens := tagTokenRE.FindAllString(strings.ToLower(tag), -1)
+	if len(tokens) == 0 {
+		return ""
+	}
+
+	switch tokens[0] {
+	case "latest", "stable", "develop", "development", "nightly", "edge":
+	default:
+		return ""
+	}
+
+	streamTokens := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		if allDigits(token) || prereleaseTokenRE.MatchString(token) {
+			continue
+		}
+		streamTokens = append(streamTokens, token)
+	}
+	return strings.Join(streamTokens, "-")
 }
 
 func filterByStreamCompatibility(tags []string, currentTag, repository string) []string {

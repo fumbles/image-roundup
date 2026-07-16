@@ -13,19 +13,47 @@ import { getSettings, putSettings } from '../api'
 import { SETTINGS_SAVED_EVENT } from '../theme'
 import type { Settings } from '../types'
 
+const parseLines = (value: string) => value.split('\n').map((v) => v.trim()).filter(Boolean)
+
+const formatLines = (values: string[] | undefined) => (values ?? []).join('\n')
+
+const formatHelmRepositories = (repositories: Settings['helmRepositories'] | undefined) => (repositories ?? [])
+  .map((repo) => `${repo.name}=${repo.url}`)
+  .join('\n')
+
+const parseHelmRepositories = (value: string): Settings['helmRepositories'] => parseLines(value)
+  .map((line) => {
+    const [name, ...urlParts] = line.split('=')
+    return { name: name?.trim() ?? '', url: urlParts.join('=').trim() }
+  })
+  .filter((repo) => repo.name && repo.url)
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [includedNamespacesText, setIncludedNamespacesText] = useState('')
+  const [excludedNamespacesText, setExcludedNamespacesText] = useState('')
+  const [helmRepositoriesText, setHelmRepositoriesText] = useState('')
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getSettings()
-      .then(setSettings)
+      .then((loaded) => {
+        setSettings(loaded)
+        setIncludedNamespacesText(formatLines(loaded.includedNamespaces))
+        setExcludedNamespacesText(formatLines(loaded.excludedNamespaces))
+        setHelmRepositoriesText(formatHelmRepositories(loaded.helmRepositories))
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load settings'))
 
     const handleSettingsSaved = (event: Event) => {
       const detail = (event as CustomEvent<Settings>).detail
-      if (detail) setSettings(detail)
+      if (detail) {
+        setSettings(detail)
+        setIncludedNamespacesText(formatLines(detail.includedNamespaces))
+        setExcludedNamespacesText(formatLines(detail.excludedNamespaces))
+        setHelmRepositoriesText(formatHelmRepositories(detail.helmRepositories))
+      }
     }
 
     window.addEventListener(SETTINGS_SAVED_EVENT, handleSettingsSaved)
@@ -35,8 +63,16 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!settings) return
     try {
-      const updated = await putSettings(settings)
+      const updated = await putSettings({
+        ...settings,
+        includedNamespaces: parseLines(includedNamespacesText),
+        excludedNamespaces: parseLines(excludedNamespacesText),
+        helmRepositories: parseHelmRepositories(helmRepositoriesText),
+      })
       setSettings(updated)
+      setIncludedNamespacesText(formatLines(updated.includedNamespaces))
+      setExcludedNamespacesText(formatLines(updated.excludedNamespaces))
+      setHelmRepositoriesText(formatHelmRepositories(updated.helmRepositories))
       window.dispatchEvent(new CustomEvent(SETTINGS_SAVED_EVENT, { detail: updated }))
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -46,17 +82,6 @@ export default function SettingsPage() {
   }
 
   if (!settings) return <div style={{ padding: '1.5rem' }}>Loading…</div>
-
-  const parseLines = (value: string) => value.split('\n').map((v) => v.trim()).filter(Boolean)
-  const formatHelmRepositories = () => (settings.helmRepositories ?? [])
-    .map((repo) => `${repo.name}=${repo.url}`)
-    .join('\n')
-  const parseHelmRepositories = (value: string) => parseLines(value)
-    .map((line) => {
-      const [name, ...urlParts] = line.split('=')
-      return { name: name?.trim() ?? '', url: urlParts.join('=').trim() }
-    })
-    .filter((repo) => repo.name && repo.url)
 
   return (
     <div className="ir-settings">
@@ -121,20 +146,16 @@ export default function SettingsPage() {
             <TextArea
               id="included-ns"
               labelText="Included namespaces (one per line, empty = all)"
-              value={(settings.includedNamespaces ?? []).join('\n')}
+              value={includedNamespacesText}
               rows={4}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setSettings((s) => s ? { ...s, includedNamespaces: parseLines(e.target.value) } : s)
-              }
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setIncludedNamespacesText(e.target.value)}
             />
             <TextArea
               id="excluded-ns"
               labelText="Excluded namespaces (one per line, supports trailing *)"
-              value={(settings.excludedNamespaces ?? []).join('\n')}
+              value={excludedNamespacesText}
               rows={4}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setSettings((s) => s ? { ...s, excludedNamespaces: parseLines(e.target.value) } : s)
-              }
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setExcludedNamespacesText(e.target.value)}
             />
           </div>
         </section>
@@ -145,11 +166,9 @@ export default function SettingsPage() {
             id="helm-repositories"
             labelText="Chart repositories (name=url, one per line)"
             helperText="Used to compare installed Helm chart versions against repository index.yaml files."
-            value={formatHelmRepositories()}
+            value={helmRepositoriesText}
             rows={4}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-              setSettings((s) => s ? { ...s, helmRepositories: parseHelmRepositories(e.target.value) } : s)
-            }
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setHelmRepositoriesText(e.target.value)}
           />
         </section>
 

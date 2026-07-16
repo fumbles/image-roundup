@@ -204,7 +204,21 @@ Scoped scan examples:
 
 The included Kubernetes deployment sets `DATA_DIR=/data`,
 `DOCKER_CONFIG=/var/run/registry-auth`, and
-`EXCLUDE_INTERNAL_REGISTRY=true`.
+`EXCLUDE_INTERNAL_REGISTRY=true`. It also sets `EXCLUDED_NAMESPACES` to
+`kube-system,kube-public,kube-node-lease,openshift*,istio*`; keep the built-in
+entries when adding local operator-managed namespaces because the env var
+overrides the default denylist.
+
+The deployment seeds `HELM_REPOSITORIES` with common chart repos for Longhorn,
+Kyverno, Policy Reporter, and OpenShift Helm charts. The value is a
+comma-separated list:
+
+```text
+longhorn=https://charts.longhorn.io,kyverno=https://kyverno.github.io/kyverno/,policy-reporter=https://kyverno.github.io/policy-reporter,openshift-helm-charts=https://charts.openshift.io/
+```
+
+For safety in small pods, Helm repository indexes larger than 8 MiB are skipped
+instead of being decoded in memory.
 
 ## Status definitions
 
